@@ -205,7 +205,7 @@ CREATE TABLE feedbacks (
     machine_id BIGINT    REFERENCES machines (id),
     session_id BIGINT    REFERENCES sessions (id),
     content    VARCHAR(1000),
-    rating     SMALLINT,
+    rating     INTEGER,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
     CONSTRAINT chk_feedbacks_rating CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5))
