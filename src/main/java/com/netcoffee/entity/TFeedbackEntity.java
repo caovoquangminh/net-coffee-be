@@ -40,8 +40,8 @@ public class TFeedbackEntity {
     /**
      * Rating từ 1-5, validate ở service layer
      */
-    @Column(name = "rating")
-    private Integer rating;
+    @Column(name = "rating", columnDefinition = "SMALLINT")
+    private Short rating;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
