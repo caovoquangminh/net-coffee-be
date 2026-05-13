@@ -1,11 +1,8 @@
 package com.netcoffee.constant;
 
-public final class AppConstant
-{
+public final class AppConstant {
 
-    private AppConstant()
-    {
-    }
+    private AppConstant() {}
 
     // QR Payment
     public static final int QR_EXPIRY_MINUTES = 15;
@@ -17,8 +14,7 @@ public final class AppConstant
     public static final long JWT_EXPIRY_MS = 86_400_000L; // 24 hours
 
     // Session
-    public static final int SESSION_BILLING_INTERVAL_SECONDS = 60; // trừ tiền
-                                                                   // mỗi 60s
+    public static final int SESSION_BILLING_INTERVAL_SECONDS = 60; // trừ tiền mỗi 60s
 
     // Pagination
     public static final int DEFAULT_PAGE_SIZE = 20;
