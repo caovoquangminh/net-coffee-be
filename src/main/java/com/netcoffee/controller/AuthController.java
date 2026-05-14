@@ -1,0 +1,33 @@
+package com.netcoffee.controller;
+
+import com.netcoffee.dto.request.LoginRequest;
+import com.netcoffee.dto.request.RegisterRequest;
+import com.netcoffee.dto.response.ApiResponse;
+import com.netcoffee.dto.response.AuthResponse;
+import com.netcoffee.dto.response.UserResponse;
+import com.netcoffee.service.AuthService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController @RequestMapping("/api/auth") @RequiredArgsConstructor
+public class AuthController
+{
+
+    private final AuthService authService;
+
+    @PostMapping("/register")
+    public ResponseEntity<ApiResponse<UserResponse>> register(@Valid @RequestBody RegisterRequest request)
+    {
+        UserResponse user = authService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Đăng ký thành công", user));
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request)
+    {
+        return ResponseEntity.ok(ApiResponse.ok(authService.login(request)));
+    }
+}
