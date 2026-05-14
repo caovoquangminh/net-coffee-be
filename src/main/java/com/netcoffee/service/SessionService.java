@@ -1,0 +1,25 @@
+package com.netcoffee.service;
+
+import com.netcoffee.dto.request.StartSessionRequest;
+import com.netcoffee.dto.response.SessionResponse;
+
+import java.util.List;
+
+public interface SessionService
+{
+
+    SessionResponse startSession(StartSessionRequest request);
+
+    SessionResponse endSession(Long sessionId);
+
+    SessionResponse forceEndSession(Long sessionId);
+
+    SessionResponse findById(Long sessionId);
+
+    List<SessionResponse> findByUserId(Long userId);
+
+    /**
+     * Được gọi bởi scheduler mỗi phút để trừ tiền realtime
+     */
+    void billingTick();
+}
