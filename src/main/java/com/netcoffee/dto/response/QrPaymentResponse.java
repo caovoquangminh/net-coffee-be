@@ -17,9 +17,6 @@ public class QrPaymentResponse
     private QrPaymentStatusEnum status;
     private LocalDateTime expiredAt;
 
-    /**
-     * Base64 QR image hoặc URL để client render
-     */
-    private String qrImageBase64;
-    private String qrContent; // Nội dung chuyển khoản gợi ý
+    private String qrImageUrl;
+    private String qrContent;
 }

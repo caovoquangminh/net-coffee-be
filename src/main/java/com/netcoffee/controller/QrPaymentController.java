@@ -3,6 +3,7 @@ package com.netcoffee.controller;
 import com.netcoffee.dto.request.TopUpRequest;
 import com.netcoffee.dto.response.ApiResponse;
 import com.netcoffee.dto.response.QrPaymentResponse;
+import com.netcoffee.enumtype.QrPaymentStatusEnum;
 import com.netcoffee.service.QrPaymentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,5 +26,17 @@ public class QrPaymentController
         Long userId = Long.parseLong(userDetails.getUsername());
         QrPaymentResponse response = qrPaymentService.generateQr(userId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(response));
+    }
+
+    @GetMapping("/{referenceCode}/status")
+    public ResponseEntity<ApiResponse<QrPaymentStatusEnum>> getStatus(
+            @PathVariable String referenceCode
+    ) {
+        QrPaymentStatusEnum status =
+                qrPaymentService.getStatus(referenceCode);
+
+        return ResponseEntity.ok(
+                ApiResponse.ok(status)
+        );
     }
 }

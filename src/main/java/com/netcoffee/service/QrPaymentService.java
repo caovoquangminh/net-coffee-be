@@ -3,6 +3,7 @@ package com.netcoffee.service;
 import com.netcoffee.dto.request.TopUpRequest;
 import com.netcoffee.dto.request.WebhookPaymentRequest;
 import com.netcoffee.dto.response.QrPaymentResponse;
+import com.netcoffee.enumtype.QrPaymentStatusEnum;
 
 public interface QrPaymentService
 {
@@ -16,4 +17,5 @@ public interface QrPaymentService
     void processWebhook(WebhookPaymentRequest request);
 
     void expireOldQrPayments();
+    QrPaymentStatusEnum getStatus(String referenceCode);
 }
