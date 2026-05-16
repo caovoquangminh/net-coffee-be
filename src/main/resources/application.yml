@@ -33,3 +33,8 @@ spring:
 app:
   jwt:
     secret: ${JWT_SECRET}
+  vietqr:
+    bank-bin: ${VIETQR_BANK_BIN}
+    bank-name: ${VIETQR_BANK_NAME}
+    account-number: ${VIETQR_ACCOUNT_NUMBER}
+    account-name: ${VIETQR_ACCOUNT_NAME}
