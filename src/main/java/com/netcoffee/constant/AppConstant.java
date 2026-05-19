@@ -5,7 +5,7 @@ public final class AppConstant {
     private AppConstant() {}
 
     // QR Payment
-    public static final int QR_EXPIRY_MINUTES = 15;
+    public static final int QR_EXPIRY_MINUTES = 5;
     public static final String QR_REFERENCE_PREFIX = "NETCOFFEE";
 
     // JWT

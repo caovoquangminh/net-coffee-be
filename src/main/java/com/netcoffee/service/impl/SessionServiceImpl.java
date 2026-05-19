@@ -156,4 +156,13 @@ public class SessionServiceImpl implements SessionService {
             }
         }
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SessionResponse findActiveByUserId(Long userId) {
+        return sessionRepository
+            .findByUserIdAndStatus(userId, SessionStatusEnum.ACTIVE)
+            .map(sessionMapper::toResponse)
+            .orElse(null);
+    }
 }

@@ -5,7 +5,6 @@ import com.netcoffee.dto.request.RegisterRequest;
 import com.netcoffee.dto.response.AuthResponse;
 import com.netcoffee.dto.response.UserResponse;
 import com.netcoffee.entity.TUserEntity;
-import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.UserRepository;
 import com.netcoffee.security.JwtTokenProvider;
@@ -24,6 +23,9 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final UserMapper userMapper;
+
+    // Message chung — không tiết lộ tài khoản có tồn tại hay không
+    private static final String INVALID_CREDENTIALS = "Số điện thoại hoặc mật khẩu không đúng";
 
     @Override
     @Transactional
@@ -45,15 +47,25 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-        TUserEntity user = userRepository.findByPhoneNumber(request.getPhoneNumber())
-                .orElseThrow(() -> new ResourceNotFoundException("Tài khoản không tồn tại"));
+        // Dùng orElse(null) thay vì orElseThrow để không tiết lộ
+        // tài khoản có tồn tại hay không
+        TUserEntity user = userRepository
+                .findByPhoneNumber(request.getPhoneNumber())
+                .orElse(null);
 
-        if (!user.getIsActive()) {
-            throw new BadCredentialsException("Tài khoản đã bị khoá");
+        // Tài khoản không tồn tại → cùng message với sai mật khẩu
+        if (user == null) {
+            throw new BadCredentialsException(INVALID_CREDENTIALS);
         }
 
+        // Tài khoản bị khóa → message riêng vì cần user biết lý do
+        if (!user.getIsActive()) {
+            throw new BadCredentialsException("Tài khoản đã bị khóa, vui lòng liên hệ nhân viên");
+        }
+
+        // Sai mật khẩu → cùng message với không tồn tại
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new BadCredentialsException("Mật khẩu không đúng");
+            throw new BadCredentialsException(INVALID_CREDENTIALS);
         }
 
         String token = jwtTokenProvider.generateToken(user.getId(), user.getPhoneNumber());
