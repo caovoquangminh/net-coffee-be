@@ -7,9 +7,9 @@ import lombok.Getter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Getter @Builder
-public class QrPaymentResponse
-{
+@Getter
+@Builder
+public class QrPaymentResponse {
 
     private Long id;
     private BigDecimal amountExpected;
@@ -18,8 +18,13 @@ public class QrPaymentResponse
     private LocalDateTime expiredAt;
 
     /**
-     * Base64 QR image hoặc URL để client render
+     * URL ảnh QR từ VietQR API — FE render trực tiếp bằng <img src=...>
+     * Format: https://img.vietqr.io/image/{bankBin}-{accountNumber}-compact2.png?...
      */
-    private String qrImageBase64;
-    private String qrContent; // Nội dung chuyển khoản gợi ý
+    private String qrImageUrl;
+
+    /**
+     * Nội dung chuyển khoản gợi ý: "BankName | AccountNumber | ReferenceCode"
+     */
+    private String qrContent;
 }
