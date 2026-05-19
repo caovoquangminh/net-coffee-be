@@ -9,13 +9,15 @@ public interface QrPaymentService {
 
     QrPaymentResponse generateQr(Long userId, TopUpRequest request);
 
+    /**
+     * Tạo QR bằng số điện thoại — không cần đăng nhập.
+     * Dùng cho màn hình login khi user muốn nạp tiền trước.
+     */
+    QrPaymentResponse generateQrByPhone(String phoneNumber, TopUpRequest request);
+
     void processWebhook(WebhookPaymentRequest request);
 
     void expireOldQrPayments();
 
-    /**
-     * FE gọi để polling trạng thái QR payment.
-     * Trả về EXPIRED nếu không tìm thấy referenceCode.
-     */
     QrPaymentStatusEnum getStatus(String referenceCode);
 }
