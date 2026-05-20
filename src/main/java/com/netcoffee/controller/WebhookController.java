@@ -3,7 +3,6 @@ package com.netcoffee.controller;
 import com.netcoffee.dto.request.SePayWebhookRequest;
 import com.netcoffee.dto.request.WebhookPaymentRequest;
 import com.netcoffee.dto.response.ApiResponse;
-import com.netcoffee.enumtype.QrPaymentStatusEnum;
 import com.netcoffee.service.QrPaymentService;
 import com.netcoffee.utils.ReferenceCodeUtil;
 import lombok.RequiredArgsConstructor;
@@ -32,23 +31,18 @@ public class WebhookController {
                 request.getTransferAmount(),
                 request.getContent());
 
-        // Chỉ xử lý tiền vào
         if (!"in".equalsIgnoreCase(request.getTransferType())) {
             log.info("Skipping non-incoming transfer");
             return ResponseEntity.ok(ApiResponse.ok(null));
         }
 
-        // Extract referenceCode từ nội dung CK
-        String referenceCode = ReferenceCodeUtil.extractFromContent(
-                request.getContent()
-        );
+        String referenceCode = ReferenceCodeUtil.extractFromContent(request.getContent());
 
         if (referenceCode == null) {
             log.info("No referenceCode found in content: {}", request.getContent());
             return ResponseEntity.ok(ApiResponse.ok(null));
         }
 
-        // Build internal request và xử lý
         WebhookPaymentRequest webhookRequest = new WebhookPaymentRequest();
         webhookRequest.setTransferContent(request.getContent());
         webhookRequest.setTransferAmount(request.getTransferAmount());
@@ -58,15 +52,5 @@ public class WebhookController {
         qrPaymentService.processWebhook(webhookRequest);
 
         return ResponseEntity.ok(ApiResponse.ok(null));
-    }
-
-    /**
-     * FE polling — check trạng thái QR payment mỗi 3s.
-     */
-    @GetMapping("/payment/status/{referenceCode}")
-    public ResponseEntity<ApiResponse<QrPaymentStatusEnum>> getPaymentStatus(
-            @PathVariable String referenceCode) {
-        QrPaymentStatusEnum status = qrPaymentService.getStatus(referenceCode);
-        return ResponseEntity.ok(ApiResponse.ok(status));
     }
 }

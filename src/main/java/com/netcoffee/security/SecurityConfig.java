@@ -32,7 +32,9 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/api/auth/**",
                     "/api/webhook/**",
-                    "/actuator/health"
+                    "/actuator/health",
+                    "/api/qr-payments/generate-by-phone",
+                    "/api/qr-payments/*/status"
                 ).permitAll()
                 .anyRequest().authenticated()
             )
@@ -59,4 +61,4 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-}
+}   
