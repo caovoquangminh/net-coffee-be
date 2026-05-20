@@ -5,8 +5,7 @@ import com.netcoffee.dto.response.SessionResponse;
 
 import java.util.List;
 
-public interface SessionService
-{
+public interface SessionService {
 
     SessionResponse startSession(StartSessionRequest request);
 
@@ -16,13 +15,7 @@ public interface SessionService
 
     SessionResponse findById(Long sessionId);
 
-    SessionResponse findActiveByUserId(Long userId);
-
     List<SessionResponse> findByUserId(Long userId);
-    
 
-    /**
-     * Được gọi bởi scheduler mỗi phút để trừ tiền realtime
-     */
-    void billingTick();
+    SessionResponse findActiveByUserId(Long userId);
 }
