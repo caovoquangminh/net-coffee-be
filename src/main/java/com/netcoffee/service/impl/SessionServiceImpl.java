@@ -6,7 +6,6 @@ import com.netcoffee.dto.response.SessionResponse;
 import com.netcoffee.entity.TMachineEntity;
 import com.netcoffee.entity.TPricingPlanEntity;
 import com.netcoffee.entity.TSessionEntity;
-import com.netcoffee.entity.TUserEntity;
 import com.netcoffee.enumtype.MachineStatusEnum;
 import com.netcoffee.enumtype.SessionStatusEnum;
 import com.netcoffee.exception.ResourceNotFoundException;
@@ -14,19 +13,21 @@ import com.netcoffee.mapper.SessionMapper;
 import com.netcoffee.repository.MachineRepository;
 import com.netcoffee.repository.PricingPlanRepository;
 import com.netcoffee.repository.SessionRepository;
+import com.netcoffee.service.SessionBillingService;
 import com.netcoffee.service.SessionService;
 import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -42,6 +43,14 @@ public class SessionServiceImpl implements SessionService {
     private final TransactionService transactionService;
     private final SessionMapper sessionMapper;
 
+    // Inject qua setter để tránh circular dependency
+    private SessionBillingService sessionBillingService;
+
+    @Autowired
+    public void setSessionBillingService(@Lazy SessionBillingService sessionBillingService) {
+        this.sessionBillingService = sessionBillingService;
+    }
+
     @Override
     @Transactional
     public SessionResponse startSession(StartSessionRequest request) {
@@ -56,23 +65,28 @@ public class SessionServiceImpl implements SessionService {
             throw new IllegalStateException("Máy đang có session đang chạy");
         }
 
-        // Lấy bảng giá áp dụng cho máy tại thời điểm hiện tại
-        TPricingPlanEntity plan = pricingPlanRepository
-                .findApplicablePlan(machine.getRoomZone(), LocalTime.now())
-                .orElseThrow(() -> new IllegalStateException("Không tìm thấy bảng giá phù hợp"));
+        // Lấy bảng giá — fallback về giá mặc định nếu không có plan
+        BigDecimal pricePerHour = pricingPlanRepository
+                .findApplicablePlan(machine.getRoomZone(), LocalTime.now(ZoneOffset.UTC))
+                .map(TPricingPlanEntity::getPricePerHour)
+                .orElse(AppConstant.SESSION_PRICE_PER_HOUR);
 
         TSessionEntity session = TSessionEntity.builder()
                 .userId(request.getUserId())
                 .machineId(request.getMachineId())
                 .status(SessionStatusEnum.ACTIVE)
-                .pricePlanId(plan.getId())
-                .pricePerHourSnapshot(plan.getPricePerHour())
+                .pricePerHourSnapshot(pricePerHour)
                 .build();
 
         session = sessionRepository.save(session);
 
-        // Update machine status
         machineRepository.updateStatusAndSession(machine.getId(), MachineStatusEnum.IN_USE, session.getId());
+
+        // Trừ phí mở máy ngay sau khi tạo session
+        sessionBillingService.chargeMinimumFee(request.getUserId(), session.getId());
+
+        log.info("Session started: user={}, machine={}, session={}, price={}",
+                request.getUserId(), request.getMachineId(), session.getId(), pricePerHour);
 
         return sessionMapper.toResponse(session);
     }
@@ -97,31 +111,18 @@ public class SessionServiceImpl implements SessionService {
             throw new IllegalStateException("Session không đang active");
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         long durationSeconds = ChronoUnit.SECONDS.between(session.getStartedAt(), now);
-
-        // Tính tiền: (giây / 3600) * giá/giờ
-        BigDecimal hours = BigDecimal.valueOf(durationSeconds)
-                .divide(BigDecimal.valueOf(3600), 6, RoundingMode.HALF_UP);
-        BigDecimal totalCost = hours.multiply(session.getPricePerHourSnapshot())
-                .setScale(2, RoundingMode.CEILING); // làm tròn lên để không lỗ
 
         session.setEndedAt(now);
         session.setDurationSeconds(durationSeconds);
-        session.setTotalCost(totalCost);
         session.setStatus(endStatus);
         sessionRepository.save(session);
 
-        // Trừ tiền và ghi transaction
-        transactionService.recordDeduct(
-                session.getUserId(),
-                totalCost,
-                sessionId,
-                "Phí sử dụng máy - Session #" + sessionId
-        );
-
-        // Giải phóng máy
         machineRepository.updateStatusAndSession(session.getMachineId(), MachineStatusEnum.AVAILABLE, null);
+
+        log.info("Session ended: session={}, status={}, duration={}s",
+                sessionId, endStatus, durationSeconds);
 
         return sessionMapper.toResponse(session);
     }
@@ -140,29 +141,12 @@ public class SessionServiceImpl implements SessionService {
                 .stream().map(sessionMapper::toResponse).toList();
     }
 
-    /**
-     * Chạy mỗi phút để check session nào hết tiền thì lock máy
-     */
-    @Override
-    @Scheduled(fixedRate = AppConstant.SESSION_BILLING_INTERVAL_SECONDS * 1000L)
-    @Transactional
-    public void billingTick() {
-        List<TSessionEntity> activeSessions = sessionRepository.findAllActiveSessions();
-        for (TSessionEntity session : activeSessions) {
-            TUserEntity user = userService.getEntityById(session.getUserId());
-            if (user.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
-                log.info("Session {} hết tiền, force end", session.getId());
-                doEndSession(session.getId(), SessionStatusEnum.FORCE_ENDED);
-            }
-        }
-    }
-
     @Override
     @Transactional(readOnly = true)
     public SessionResponse findActiveByUserId(Long userId) {
         return sessionRepository
-            .findByUserIdAndStatus(userId, SessionStatusEnum.ACTIVE)
-            .map(sessionMapper::toResponse)
-            .orElse(null);
+                .findByUserIdAndStatus(userId, SessionStatusEnum.ACTIVE)
+                .map(sessionMapper::toResponse)
+                .orElse(null);
     }
 }
