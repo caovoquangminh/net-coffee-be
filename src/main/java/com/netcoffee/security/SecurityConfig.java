@@ -33,7 +33,8 @@ public class SecurityConfig {
                     "/api/auth/**",
                     "/api/webhook/**",
                     "/actuator/health",
-                    "/api/qr-payments/generate-by-phone"
+                    "/api/qr-payments/generate-by-phone",
+                    "/api/qr-payments/*/status"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

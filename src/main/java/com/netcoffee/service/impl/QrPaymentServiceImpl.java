@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Slf4j
 @Service
@@ -143,7 +144,7 @@ public class QrPaymentServiceImpl implements QrPaymentService {
             return;
         }
 
-        if (qrPayment.getExpiredAt().isBefore(LocalDateTime.now())) {
+        if (qrPayment.getExpiredAt().isBefore(LocalDateTime.now(ZoneOffset.UTC))) {
             qrPayment.setStatus(QrPaymentStatusEnum.EXPIRED);
             qrPaymentRepository.save(qrPayment);
             log.warn("QR payment {} expired", referenceCode);
@@ -152,7 +153,7 @@ public class QrPaymentServiceImpl implements QrPaymentService {
 
         qrPayment.setStatus(QrPaymentStatusEnum.MATCHED);
         qrPayment.setAmountReceived(request.getTransferAmount());
-        qrPayment.setMatchedAt(LocalDateTime.now());
+        qrPayment.setMatchedAt(LocalDateTime.now(ZoneOffset.UTC));
         qrPaymentRepository.save(qrPayment);
 
         userService.topUp(qrPayment.getUserId(), request.getTransferAmount());
@@ -172,7 +173,7 @@ public class QrPaymentServiceImpl implements QrPaymentService {
     @Scheduled(fixedRate = 60_000)
     @Transactional
     public void expireOldQrPayments() {
-        int count = qrPaymentRepository.expireOldQrPayments(LocalDateTime.now());
+        int count = qrPaymentRepository.expireOldQrPayments(LocalDateTime.now(ZoneOffset.UTC));
         if (count > 0) {
             log.info("Expired {} QR payments", count);
         }
