@@ -54,6 +54,13 @@ public class TSessionEntity
     @Column(name = "price_per_hour_snapshot", nullable = false, precision = 15, scale = 2)
     private BigDecimal pricePerHourSnapshot;
 
+    /**
+     * Thời điểm đã bill đến — cập nhật sau mỗi billing tick và sau chargeMinimumFee.
+     * Dùng để tính phần lẻ chưa bill khi kết thúc session.
+     */
+    @Column(name = "last_billed_at")
+    private LocalDateTime lastBilledAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

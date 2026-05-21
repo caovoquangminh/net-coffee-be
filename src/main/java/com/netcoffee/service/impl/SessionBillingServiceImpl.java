@@ -41,10 +41,14 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         this.sessionService = sessionService;
     }
 
-    // Self-injection so @Transactional(REQUIRES_NEW) on processBillingNewTx is intercepted by proxy
+    // Self-injection để @Transactional(REQUIRES_NEW) trên processBillingNewTx được proxy intercept
     @Lazy
     @Autowired
-    private SessionBillingServiceImpl self;
+    SessionBillingServiceImpl self;
+
+    // -------------------------------------------------------------------------
+    // chargeMinimumFee
+    // -------------------------------------------------------------------------
 
     @Override
     @Transactional
@@ -65,15 +69,24 @@ public class SessionBillingServiceImpl implements SessionBillingService {
                 "Phí mở máy (tối thiểu " + AppConstant.SESSION_MINIMUM_MINUTES + " phút)"
         );
 
+        // Đánh dấu SESSION_MINIMUM_MINUTES đầu tiên đã được thanh toán trước
+        sessionRepository.findById(sessionId).ifPresent(session -> {
+            LocalDateTime billedUpTo = session.getStartedAt()
+                    .plusMinutes(AppConstant.SESSION_MINIMUM_MINUTES);
+            sessionRepository.updateLastBilledAt(sessionId, billedUpTo);
+        });
+
         log.info("Charged minimum fee: user={}, amount={}, session={}",
                 userId, AppConstant.SESSION_MINIMUM_CHARGE, sessionId);
     }
 
+    // -------------------------------------------------------------------------
+    // billingTick — mỗi session chạy trong transaction riêng (REQUIRES_NEW)
+    // -------------------------------------------------------------------------
+
     @Override
     @Scheduled(fixedRate = AppConstant.SESSION_BILLING_INTERVAL_SECONDS * 1000L)
     public void billingTick() {
-        // Not transactional — each session is billed in its own independent transaction
-        // so a failure on one session never rolls back billing for other sessions.
         List<TSessionEntity> activeSessions = sessionRepository.findAllActiveSessions();
         for (TSessionEntity session : activeSessions) {
             try {
@@ -93,11 +106,20 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         processBilling(session);
     }
 
-    private void processBilling(TSessionEntity session) {
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        long elapsedMinutes = ChronoUnit.MINUTES.between(session.getStartedAt(), now);
+    // -------------------------------------------------------------------------
+    // processBilling — trừ tiền theo giây thực từ lastBilledAt
+    // -------------------------------------------------------------------------
 
-        if (elapsedMinutes <= AppConstant.SESSION_MINIMUM_MINUTES) {
+    void processBilling(TSessionEntity session) {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+
+        // Điểm bắt đầu charge: sau khi phí minimum đã cover
+        LocalDateTime lastBilledAt = session.getLastBilledAt() != null
+                ? session.getLastBilledAt()
+                : session.getStartedAt().plusMinutes(AppConstant.SESSION_MINIMUM_MINUTES);
+
+        // Chưa qua kỳ đã trả trước → bỏ qua
+        if (!now.isAfter(lastBilledAt)) {
             return;
         }
 
@@ -109,26 +131,89 @@ public class SessionBillingServiceImpl implements SessionBillingService {
             return;
         }
 
-        BigDecimal costPerMinute = session.getPricePerHourSnapshot()
-                .divide(BigDecimal.valueOf(60), 6, RoundingMode.HALF_UP);
-        BigDecimal deductAmount = costPerMinute.min(user.getBalance());
+        long unbilledSeconds = ChronoUnit.SECONDS.between(lastBilledAt, now);
+        BigDecimal deductAmount = calcCharge(session.getPricePerHourSnapshot(), unbilledSeconds)
+                .min(user.getBalance());
 
         userService.deduct(session.getUserId(), deductAmount);
+
+        // Cập nhật lastBilledAt = now trước khi record transaction
+        sessionRepository.updateLastBilledAt(session.getId(), now);
 
         transactionService.recordDeduct(
                 session.getUserId(),
                 deductAmount,
                 session.getId(),
-                "Phí sử dụng máy - " + elapsedMinutes + " phút"
+                "Phí sử dụng máy (" + unbilledSeconds + "s)"
         );
 
-        log.debug("Billing tick: session={}, deduct={}, elapsed={}m",
-                session.getId(), deductAmount, elapsedMinutes);
+        log.debug("Billing tick: session={}, unbilled={}s, deduct={}",
+                session.getId(), unbilledSeconds, deductAmount);
 
+        // Kiểm tra lại sau khi trừ
         TUserEntity updatedUser = userService.getEntityById(session.getUserId());
         if (updatedUser.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
-            log.info("Session {} balance exhausted, force ending", session.getId());
+            log.info("Session {} balance exhausted after billing, force ending", session.getId());
             sessionService.forceEndSession(session.getId());
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // chargeFinalBill — kết toán phần lẻ khi session kết thúc
+    // -------------------------------------------------------------------------
+
+    @Override
+    @Transactional
+    public void chargeFinalBill(Long userId, Long sessionId,
+                                LocalDateTime lastBilledAt, LocalDateTime endedAt,
+                                BigDecimal pricePerHour) {
+        if (lastBilledAt == null || !endedAt.isAfter(lastBilledAt)) {
+            return;
+        }
+
+        long unbilledSeconds = ChronoUnit.SECONDS.between(lastBilledAt, endedAt);
+        if (unbilledSeconds <= 0) {
+            return;
+        }
+
+        TUserEntity user = userService.getEntityById(userId);
+        if (user.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        BigDecimal deductAmount = calcCharge(pricePerHour, unbilledSeconds)
+                .min(user.getBalance());
+
+        if (deductAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        userService.deduct(userId, deductAmount);
+
+        transactionService.recordDeduct(
+                userId,
+                deductAmount,
+                sessionId,
+                "Kết toán cuối phiên (" + unbilledSeconds + "s)"
+        );
+
+        log.info("Final billing: session={}, unbilled={}s, deduct={}",
+                sessionId, unbilledSeconds, deductAmount);
+    }
+
+    // -------------------------------------------------------------------------
+    // Helper
+    // -------------------------------------------------------------------------
+
+    /**
+     * Tính tiền cho số giây đã dùng theo giá/giờ.
+     * Kết quả làm tròn đến 2 chữ số thập phân (đơn vị đồng).
+     */
+    static BigDecimal calcCharge(BigDecimal pricePerHour, long seconds) {
+        if (seconds <= 0) return BigDecimal.ZERO;
+        BigDecimal pricePerSecond = pricePerHour.divide(
+                BigDecimal.valueOf(3600), 10, RoundingMode.HALF_UP);
+        return pricePerSecond.multiply(BigDecimal.valueOf(seconds))
+                .setScale(2, RoundingMode.HALF_UP);
     }
 }

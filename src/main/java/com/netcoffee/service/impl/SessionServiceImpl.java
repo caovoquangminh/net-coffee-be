@@ -54,7 +54,7 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional
     public SessionResponse startSession(StartSessionRequest request) {
-        // Pessimistic lock prevents two concurrent requests from starting on the same machine
+        // Pessimistic lock — ngăn 2 request đồng thời khởi session trên cùng 1 máy
         TMachineEntity machine = machineRepository.findByIdForUpdate(request.getMachineId())
                 .orElseThrow(() -> new ResourceNotFoundException("Máy không tồn tại"));
 
@@ -82,6 +82,7 @@ public class SessionServiceImpl implements SessionService {
 
         machineRepository.updateStatusAndSession(machine.getId(), MachineStatusEnum.IN_USE, session.getId());
 
+        // chargeMinimumFee cũng set lastBilledAt = startedAt + SESSION_MINIMUM_MINUTES
         sessionBillingService.chargeMinimumFee(request.getUserId(), session.getId());
 
         log.info("Session started: user={}, machine={}, session={}, price={}",
@@ -118,8 +119,21 @@ public class SessionServiceImpl implements SessionService {
         }
 
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        long durationSeconds = ChronoUnit.SECONDS.between(session.getStartedAt(), now);
 
+        // Kết toán phần lẻ chưa bill trước khi đóng session
+        try {
+            sessionBillingService.chargeFinalBill(
+                    session.getUserId(),
+                    session.getId(),
+                    session.getLastBilledAt(),
+                    now,
+                    session.getPricePerHourSnapshot()
+            );
+        } catch (Exception e) {
+            log.warn("Final billing failed for session {}: {}", session.getId(), e.getMessage());
+        }
+
+        long durationSeconds = ChronoUnit.SECONDS.between(session.getStartedAt(), now);
         session.setEndedAt(now);
         session.setDurationSeconds(durationSeconds);
         session.setStatus(endStatus);

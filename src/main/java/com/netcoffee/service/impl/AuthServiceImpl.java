@@ -80,12 +80,28 @@ public class AuthServiceImpl implements AuthService {
         String token = jwtTokenProvider.generateToken(user.getId(), user.getPhoneNumber());
 
         SessionResponse session = null;
+        if (request.getMachineId() == null) {
+            return AuthResponse.builder()
+                    .token(token).user(userMapper.toResponse(user)).session(null).build();
+        }
         try {
             session = self.createSessionInNewTransaction(user.getId(), request.getMachineId());
             log.info("Auto session created: user={}, machine={}, session={}",
                     user.getId(), request.getMachineId(), session.getId());
         } catch (Exception e) {
-            log.warn("Could not create session on login: {}", e.getMessage());
+            log.warn("Could not create session on login ({}), checking for existing session", e.getMessage());
+            // Máy có thể đang IN_USE bởi chính session cũ của user → trả về session đó
+            if (request.getMachineId() != null) {
+                try {
+                    SessionResponse existing = sessionService.findActiveByUserId(user.getId());
+                    if (existing != null && existing.getMachineId().equals(request.getMachineId())) {
+                        session = existing;
+                        log.info("Reconnected to existing session: user={}, session={}", user.getId(), session.getId());
+                    }
+                } catch (Exception ex) {
+                    log.warn("Could not find existing session for user {}: {}", user.getId(), ex.getMessage());
+                }
+            }
         }
 
         return AuthResponse.builder()
