@@ -2,7 +2,9 @@ package com.netcoffee.repository;
 
 import com.netcoffee.entity.TQrPaymentEntity;
 import com.netcoffee.enumtype.QrPaymentStatusEnum;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -17,6 +19,10 @@ public interface QrPaymentRepository extends JpaRepository<TQrPaymentEntity, Lon
 {
 
     Optional<TQrPaymentEntity> findByReferenceCode(String referenceCode);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT q FROM TQrPaymentEntity q WHERE q.referenceCode = :referenceCode")
+    Optional<TQrPaymentEntity> findByReferenceCodeForUpdate(@Param("referenceCode") String referenceCode);
 
     List<TQrPaymentEntity> findByUserIdAndStatus(Long userId, QrPaymentStatusEnum status);
 

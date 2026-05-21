@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity @Table(name = "sessions", indexes = { @Index(name = "idx_sessions_user_id", columnList = "user_id"),
         @Index(name = "idx_sessions_machine_id", columnList = "machine_id"),
@@ -53,16 +54,23 @@ public class TSessionEntity
     @Column(name = "price_per_hour_snapshot", nullable = false, precision = 15, scale = 2)
     private BigDecimal pricePerHourSnapshot;
 
+    /**
+     * Thời điểm đã bill đến — cập nhật sau mỗi billing tick và sau chargeMinimumFee.
+     * Dùng để tính phần lẻ chưa bill khi kết thúc session.
+     */
+    @Column(name = "last_billed_at")
+    private LocalDateTime lastBilledAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate()
     {
-        createdAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
         if (startedAt == null)
         {
-            startedAt = LocalDateTime.now();
+            startedAt = LocalDateTime.now(ZoneOffset.UTC);
         }
     }
 }

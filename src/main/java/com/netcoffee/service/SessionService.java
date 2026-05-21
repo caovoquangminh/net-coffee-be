@@ -9,7 +9,7 @@ public interface SessionService {
 
     SessionResponse startSession(StartSessionRequest request);
 
-    SessionResponse endSession(Long sessionId);
+    SessionResponse endSession(Long sessionId, Long requestingUserId);
 
     SessionResponse forceEndSession(Long sessionId);
 

@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,7 +44,6 @@ public class SessionServiceImpl implements SessionService {
     private final TransactionService transactionService;
     private final SessionMapper sessionMapper;
 
-    // Inject qua setter để tránh circular dependency
     private SessionBillingService sessionBillingService;
 
     @Autowired
@@ -54,7 +54,8 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional
     public SessionResponse startSession(StartSessionRequest request) {
-        TMachineEntity machine = machineRepository.findById(request.getMachineId())
+        // Pessimistic lock — ngăn 2 request đồng thời khởi session trên cùng 1 máy
+        TMachineEntity machine = machineRepository.findByIdForUpdate(request.getMachineId())
                 .orElseThrow(() -> new ResourceNotFoundException("Máy không tồn tại"));
 
         if (machine.getStatus() != MachineStatusEnum.AVAILABLE) {
@@ -65,7 +66,6 @@ public class SessionServiceImpl implements SessionService {
             throw new IllegalStateException("Máy đang có session đang chạy");
         }
 
-        // Lấy bảng giá — fallback về giá mặc định nếu không có plan
         BigDecimal pricePerHour = pricingPlanRepository
                 .findApplicablePlan(machine.getRoomZone(), LocalTime.now(ZoneOffset.UTC))
                 .map(TPricingPlanEntity::getPricePerHour)
@@ -82,7 +82,7 @@ public class SessionServiceImpl implements SessionService {
 
         machineRepository.updateStatusAndSession(machine.getId(), MachineStatusEnum.IN_USE, session.getId());
 
-        // Trừ phí mở máy ngay sau khi tạo session
+        // chargeMinimumFee cũng set lastBilledAt = startedAt + SESSION_MINIMUM_MINUTES
         sessionBillingService.chargeMinimumFee(request.getUserId(), session.getId());
 
         log.info("Session started: user={}, machine={}, session={}, price={}",
@@ -93,27 +93,47 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     @Transactional
-    public SessionResponse endSession(Long sessionId) {
-        return doEndSession(sessionId, SessionStatusEnum.ENDED);
+    public SessionResponse endSession(Long sessionId, Long requestingUserId) {
+        TSessionEntity session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại"));
+
+        if (!session.getUserId().equals(requestingUserId)) {
+            throw new AccessDeniedException("Không có quyền kết thúc phiên này");
+        }
+
+        return doEndSession(session, SessionStatusEnum.ENDED);
     }
 
     @Override
     @Transactional
     public SessionResponse forceEndSession(Long sessionId) {
-        return doEndSession(sessionId, SessionStatusEnum.FORCE_ENDED);
-    }
-
-    private SessionResponse doEndSession(Long sessionId, SessionStatusEnum endStatus) {
         TSessionEntity session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại"));
 
+        return doEndSession(session, SessionStatusEnum.FORCE_ENDED);
+    }
+
+    private SessionResponse doEndSession(TSessionEntity session, SessionStatusEnum endStatus) {
         if (session.getStatus() != SessionStatusEnum.ACTIVE) {
             throw new IllegalStateException("Session không đang active");
         }
 
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        long durationSeconds = ChronoUnit.SECONDS.between(session.getStartedAt(), now);
 
+        // Kết toán phần lẻ chưa bill trước khi đóng session
+        try {
+            sessionBillingService.chargeFinalBill(
+                    session.getUserId(),
+                    session.getId(),
+                    session.getLastBilledAt(),
+                    now,
+                    session.getPricePerHourSnapshot()
+            );
+        } catch (Exception e) {
+            log.warn("Final billing failed for session {}: {}", session.getId(), e.getMessage());
+        }
+
+        long durationSeconds = ChronoUnit.SECONDS.between(session.getStartedAt(), now);
         session.setEndedAt(now);
         session.setDurationSeconds(durationSeconds);
         session.setStatus(endStatus);
@@ -122,7 +142,7 @@ public class SessionServiceImpl implements SessionService {
         machineRepository.updateStatusAndSession(session.getMachineId(), MachineStatusEnum.AVAILABLE, null);
 
         log.info("Session ended: session={}, status={}, duration={}s",
-                sessionId, endStatus, durationSeconds);
+                session.getId(), endStatus, durationSeconds);
 
         return sessionMapper.toResponse(session);
     }

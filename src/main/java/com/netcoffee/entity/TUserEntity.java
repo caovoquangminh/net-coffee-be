@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity @Table(name = "users", indexes = {
         @Index(name = "idx_users_phone_number", columnList = "phone_number", unique = true) }) @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -49,13 +50,13 @@ public class TUserEntity
     @PrePersist
     protected void onCreate()
     {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
     @PreUpdate
     protected void onUpdate()
     {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 }
