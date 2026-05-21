@@ -10,6 +10,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController @RequestMapping("/api/auth") @RequiredArgsConstructor
@@ -29,5 +31,13 @@ public class AuthController
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request)
     {
         return ResponseEntity.ok(ApiResponse.ok(authService.login(request)));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(@AuthenticationPrincipal UserDetails userDetails)
+    {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        authService.logout(userId);
+        return ResponseEntity.ok(ApiResponse.ok("Đăng xuất thành công", null));
     }
 }

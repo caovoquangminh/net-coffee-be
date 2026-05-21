@@ -5,6 +5,7 @@ import com.netcoffee.dto.response.AuthResponse;
 import com.netcoffee.dto.response.SessionResponse;
 import com.netcoffee.dto.response.UserResponse;
 import com.netcoffee.entity.TUserEntity;
+import com.netcoffee.exception.InsufficientBalanceException;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.UserRepository;
 import com.netcoffee.security.JwtTokenProvider;
@@ -166,13 +167,93 @@ class AuthServiceImplTest {
             when(passwordEncoder.matches("pass", "hashed")).thenReturn(true);
             when(jwtTokenProvider.generateToken(1L, "0901234567")).thenReturn("jwt-token");
             when(userMapper.toResponse(user)).thenReturn(userResp);
-            // selfProxy.createSessionInNewTransaction không được gọi vì machineId = null
 
             AuthResponse result = authService.login(req);
 
             assertThat(result.getToken()).isEqualTo("jwt-token");
             assertThat(result.getSession()).isNull();
             verify(selfProxy, never()).createSessionInNewTransaction(any(), any());
+        }
+
+        @Test
+        @DisplayName("Số dư không đủ 2000đ → InsufficientBalanceException propagate, không trả token")
+        void insufficientBalance_throwsAndDoesNotReturnToken() {
+            TUserEntity user = buildActiveUser(1L, "0901234567", "hashed");
+            LoginRequest req = buildLoginRequest("0901234567", "pass", 5L);
+
+            when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches("pass", "hashed")).thenReturn(true);
+            when(jwtTokenProvider.generateToken(1L, "0901234567")).thenReturn("jwt-token");
+            when(selfProxy.createSessionInNewTransaction(1L, 5L))
+                    .thenThrow(new InsufficientBalanceException("Số dư không đủ để mở máy. Cần tối thiểu 2000đ"));
+
+            assertThatThrownBy(() -> authService.login(req))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .hasMessageContaining("Số dư không đủ");
+
+            // Phải ném exception trước khi trả response → không tạo được AuthResponse
+            verify(sessionService, never()).findActiveByUserId(any());
+        }
+
+        @Test
+        @DisplayName("Máy IN_USE nhưng InsufficientBalance không bị nuốt → phân biệt đúng với IllegalState")
+        void machineInUse_byIllegalState_stillReconnects() {
+            TUserEntity user = buildActiveUser(1L, "0901234567", "hashed");
+            SessionResponse existingSession = buildSession(99L, 1L, 5L);
+            UserResponse userResp = UserResponse.builder().id(1L).build();
+            LoginRequest req = buildLoginRequest("0901234567", "pass", 5L);
+
+            when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(user));
+            when(passwordEncoder.matches("pass", "hashed")).thenReturn(true);
+            when(jwtTokenProvider.generateToken(1L, "0901234567")).thenReturn("jwt-token");
+            when(selfProxy.createSessionInNewTransaction(1L, 5L))
+                    .thenThrow(new IllegalStateException("Máy không khả dụng"));
+            when(sessionService.findActiveByUserId(1L)).thenReturn(existingSession);
+            when(userMapper.toResponse(user)).thenReturn(userResp);
+
+            AuthResponse result = authService.login(req);
+
+            assertThat(result.getSession()).isEqualTo(existingSession);
+        }
+    }
+
+    // =========================================================================
+    // logout
+    // =========================================================================
+
+    @Nested
+    @DisplayName("logout")
+    class LogoutTest {
+
+        @Test
+        @DisplayName("Có session đang active → kết thúc session, không ném exception")
+        void activeSession_endsSessionCleanly() {
+            SessionResponse activeSession = buildSession(50L, 1L, 5L);
+            when(sessionService.findActiveByUserId(1L)).thenReturn(activeSession);
+
+            assertThatCode(() -> authService.logout(1L)).doesNotThrowAnyException();
+
+            verify(sessionService).endSession(50L, 1L);
+        }
+
+        @Test
+        @DisplayName("Không có session active → không gọi endSession, không ném exception")
+        void noActiveSession_noOp() {
+            when(sessionService.findActiveByUserId(1L)).thenReturn(null);
+
+            assertThatCode(() -> authService.logout(1L)).doesNotThrowAnyException();
+
+            verify(sessionService, never()).endSession(any(), any());
+        }
+
+        @Test
+        @DisplayName("endSession ném exception → logout vẫn không propagate exception")
+        void endSessionFails_logoutDoesNotThrow() {
+            SessionResponse activeSession = buildSession(50L, 1L, 5L);
+            when(sessionService.findActiveByUserId(1L)).thenReturn(activeSession);
+            doThrow(new RuntimeException("DB lỗi")).when(sessionService).endSession(50L, 1L);
+
+            assertThatCode(() -> authService.logout(1L)).doesNotThrowAnyException();
         }
     }
 
