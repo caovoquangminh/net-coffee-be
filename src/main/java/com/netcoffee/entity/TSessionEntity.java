@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity @Table(name = "sessions", indexes = { @Index(name = "idx_sessions_user_id", columnList = "user_id"),
         @Index(name = "idx_sessions_machine_id", columnList = "machine_id"),
@@ -59,10 +60,10 @@ public class TSessionEntity
     @PrePersist
     protected void onCreate()
     {
-        createdAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
         if (startedAt == null)
         {
-            startedAt = LocalDateTime.now();
+            startedAt = LocalDateTime.now(ZoneOffset.UTC);
         }
     }
 }

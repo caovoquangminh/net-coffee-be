@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -33,13 +34,17 @@ public class SessionBillingServiceImpl implements SessionBillingService {
     private final UserService userService;
     private final TransactionService transactionService;
 
-    // Inject qua setter để tránh circular dependency
     private SessionService sessionService;
 
     @Autowired
     public void setSessionService(@Lazy SessionService sessionService) {
         this.sessionService = sessionService;
     }
+
+    // Self-injection so @Transactional(REQUIRES_NEW) on processBillingNewTx is intercepted by proxy
+    @Lazy
+    @Autowired
+    private SessionBillingServiceImpl self;
 
     @Override
     @Transactional
@@ -66,37 +71,44 @@ public class SessionBillingServiceImpl implements SessionBillingService {
 
     @Override
     @Scheduled(fixedRate = AppConstant.SESSION_BILLING_INTERVAL_SECONDS * 1000L)
-    @Transactional
     public void billingTick() {
+        // Not transactional — each session is billed in its own independent transaction
+        // so a failure on one session never rolls back billing for other sessions.
         List<TSessionEntity> activeSessions = sessionRepository.findAllActiveSessions();
         for (TSessionEntity session : activeSessions) {
             try {
-                processBilling(session);
+                self.processBillingNewTx(session.getId());
             } catch (Exception e) {
                 log.error("Billing error for session {}: {}", session.getId(), e.getMessage());
             }
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void processBillingNewTx(Long sessionId) {
+        TSessionEntity session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null || session.getStatus() != SessionStatusEnum.ACTIVE) {
+            return;
+        }
+        processBilling(session);
+    }
+
     private void processBilling(TSessionEntity session) {
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         long elapsedMinutes = ChronoUnit.MINUTES.between(session.getStartedAt(), now);
 
-        // Trong 15p đầu không trừ thêm
         if (elapsedMinutes <= AppConstant.SESSION_MINIMUM_MINUTES) {
             return;
         }
 
         TUserEntity user = userService.getEntityById(session.getUserId());
 
-        // Hết tiền → force end
         if (user.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
             log.info("Session {} out of balance, force ending", session.getId());
             sessionService.forceEndSession(session.getId());
             return;
         }
 
-        // Trừ tiền 1 phút
         BigDecimal costPerMinute = session.getPricePerHourSnapshot()
                 .divide(BigDecimal.valueOf(60), 6, RoundingMode.HALF_UP);
         BigDecimal deductAmount = costPerMinute.min(user.getBalance());
@@ -113,7 +125,6 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         log.debug("Billing tick: session={}, deduct={}, elapsed={}m",
                 session.getId(), deductAmount, elapsedMinutes);
 
-        // Check lại sau khi trừ
         TUserEntity updatedUser = userService.getEntityById(session.getUserId());
         if (updatedUser.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
             log.info("Session {} balance exhausted, force ending", session.getId());

@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -29,16 +30,26 @@ public class SessionController {
     }
 
     @PostMapping("/{id}/end")
-    public ResponseEntity<ApiResponse<SessionResponse>> endSession(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.ok("Session kết thúc", sessionService.endSession(id)));
+    public ResponseEntity<ApiResponse<SessionResponse>> endSession(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return ResponseEntity.ok(ApiResponse.ok("Session kết thúc", sessionService.endSession(id, userId)));
     }
 
     @PostMapping("/{id}/force-end")
-    public ResponseEntity<ApiResponse<SessionResponse>> forceEndSession(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<SessionResponse>> forceEndSession(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        SessionResponse existing = sessionService.findById(id);
+        if (!existing.getUserId().equals(userId)) {
+            throw new AccessDeniedException("Không có quyền kết thúc phiên này");
+        }
         return ResponseEntity.ok(ApiResponse.ok("Session bị kết thúc", sessionService.forceEndSession(id)));
     }
 
-    // ← /active và /my phải đặt TRƯỚC /{id} để tránh Spring match nhầm
+    // /active and /my must be placed BEFORE /{id} to avoid Spring matching them as IDs
     @GetMapping("/active")
     public ResponseEntity<ApiResponse<SessionResponse>> getActiveSession(
             @AuthenticationPrincipal UserDetails userDetails) {

@@ -130,8 +130,9 @@ public class QrPaymentServiceImpl implements QrPaymentService {
             return;
         }
 
+        // Pessimistic lock prevents duplicate processing when two webhooks arrive simultaneously
         TQrPaymentEntity qrPayment = qrPaymentRepository
-                .findByReferenceCode(referenceCode)
+                .findByReferenceCodeForUpdate(referenceCode)
                 .orElse(null);
 
         if (qrPayment == null) {

@@ -1,5 +1,6 @@
 package com.netcoffee.dto.request;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -29,6 +30,7 @@ public class CreateOrderRequest
         private Long menuItemId;
 
         @NotNull
+        @Min(value = 1, message = "Số lượng phải ít nhất là 1")
         private Integer quantity;
     }
 }

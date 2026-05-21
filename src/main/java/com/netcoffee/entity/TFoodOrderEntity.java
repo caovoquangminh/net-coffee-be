@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity @Table(name = "orders", indexes = { @Index(name = "idx_orders_session_id", columnList = "session_id"),
         @Index(name = "idx_orders_user_id", columnList = "user_id"),
@@ -43,6 +44,6 @@ public class TFoodOrderEntity
     @PrePersist
     protected void onCreate()
     {
-        createdAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 }
