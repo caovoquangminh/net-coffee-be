@@ -19,7 +19,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -36,7 +35,6 @@ class AuthServiceImplTest {
     @Mock JwtTokenProvider jwtTokenProvider;
     @Mock UserMapper userMapper;
     @Mock SessionService sessionService;
-    @Mock AuthServiceImpl selfProxy;  // mock proxy để kiểm soát createSessionInNewTransaction
 
     AuthServiceImpl authService;
 
@@ -44,7 +42,6 @@ class AuthServiceImplTest {
     void setUp() {
         authService = new AuthServiceImpl(userRepository, passwordEncoder,
                 jwtTokenProvider, userMapper, sessionService);
-        ReflectionTestUtils.setField(authService, "self", selfProxy);
     }
 
     // =========================================================================
@@ -66,7 +63,7 @@ class AuthServiceImplTest {
             when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(user));
             when(passwordEncoder.matches("pass", "hashed")).thenReturn(true);
             when(jwtTokenProvider.generateToken(1L, "0901234567")).thenReturn("jwt-token");
-            when(selfProxy.createSessionInNewTransaction(1L, 5L)).thenReturn(newSession);
+            when(sessionService.getOrStartSession(1L, 5L)).thenReturn(newSession);
             when(userMapper.toResponse(user)).thenReturn(userResp);
 
             AuthResponse result = authService.login(req);
@@ -77,21 +74,17 @@ class AuthServiceImplTest {
         }
 
         @Test
-        @DisplayName("Máy đang IN_USE bởi session cũ của user → reconnect trả về session cũ")
+        @DisplayName("Máy đang IN_USE bởi session cũ của user → getOrStartSession reconnect, trả về session cũ")
         void machineInUse_sameUserSameMachine_reconnectsToExistingSession() {
             TUserEntity user = buildActiveUser(1L, "0901234567", "hashed");
-            SessionResponse existingSession = buildSession(99L, 1L, 5L); // machine 5L
+            SessionResponse existingSession = buildSession(99L, 1L, 5L);
             UserResponse userResp = UserResponse.builder().id(1L).build();
             LoginRequest req = buildLoginRequest("0901234567", "pass", 5L);
 
             when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(user));
             when(passwordEncoder.matches("pass", "hashed")).thenReturn(true);
             when(jwtTokenProvider.generateToken(1L, "0901234567")).thenReturn("jwt-token");
-            // Tạo session mới thất bại vì máy đang dùng
-            when(selfProxy.createSessionInNewTransaction(1L, 5L))
-                    .thenThrow(new IllegalStateException("Máy không khả dụng"));
-            // Tìm thấy session cũ của user trên cùng máy
-            when(sessionService.findActiveByUserId(1L)).thenReturn(existingSession);
+            when(sessionService.getOrStartSession(1L, 5L)).thenReturn(existingSession);
             when(userMapper.toResponse(user)).thenReturn(userResp);
 
             AuthResponse result = authService.login(req);
@@ -102,19 +95,16 @@ class AuthServiceImplTest {
         }
 
         @Test
-        @DisplayName("Máy IN_USE nhưng session đang ở máy khác → trả về session = null")
-        void machineInUse_sessionOnDifferentMachine_returnsNullSession() {
+        @DisplayName("getOrStartSession không tìm được session phù hợp → trả về session = null")
+        void getOrStartSession_returnsNull_noSessionInResponse() {
             TUserEntity user = buildActiveUser(1L, "0901234567", "hashed");
-            SessionResponse sessionOnAnotherMachine = buildSession(88L, 1L, 99L); // machine 99L khác
             UserResponse userResp = UserResponse.builder().id(1L).build();
-            LoginRequest req = buildLoginRequest("0901234567", "pass", 5L); // login vào máy 5L
+            LoginRequest req = buildLoginRequest("0901234567", "pass", 5L);
 
             when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(user));
             when(passwordEncoder.matches("pass", "hashed")).thenReturn(true);
             when(jwtTokenProvider.generateToken(1L, "0901234567")).thenReturn("jwt-token");
-            when(selfProxy.createSessionInNewTransaction(1L, 5L))
-                    .thenThrow(new IllegalStateException("Máy không khả dụng"));
-            when(sessionService.findActiveByUserId(1L)).thenReturn(sessionOnAnotherMachine);
+            when(sessionService.getOrStartSession(1L, 5L)).thenReturn(null);
             when(userMapper.toResponse(user)).thenReturn(userResp);
 
             AuthResponse result = authService.login(req);
@@ -157,7 +147,7 @@ class AuthServiceImplTest {
         }
 
         @Test
-        @DisplayName("machineId = null → không thử reconnect, session = null")
+        @DisplayName("machineId = null → không thử tạo session, session = null")
         void nullMachineId_noSessionCreated() {
             TUserEntity user = buildActiveUser(1L, "0901234567", "hashed");
             UserResponse userResp = UserResponse.builder().id(1L).build();
@@ -172,7 +162,7 @@ class AuthServiceImplTest {
 
             assertThat(result.getToken()).isEqualTo("jwt-token");
             assertThat(result.getSession()).isNull();
-            verify(selfProxy, never()).createSessionInNewTransaction(any(), any());
+            verify(sessionService, never()).getOrStartSession(any(), any());
         }
 
         @Test
@@ -184,36 +174,12 @@ class AuthServiceImplTest {
             when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(user));
             when(passwordEncoder.matches("pass", "hashed")).thenReturn(true);
             when(jwtTokenProvider.generateToken(1L, "0901234567")).thenReturn("jwt-token");
-            when(selfProxy.createSessionInNewTransaction(1L, 5L))
+            when(sessionService.getOrStartSession(1L, 5L))
                     .thenThrow(new InsufficientBalanceException("Số dư không đủ để mở máy. Cần tối thiểu 2000đ"));
 
             assertThatThrownBy(() -> authService.login(req))
                     .isInstanceOf(InsufficientBalanceException.class)
                     .hasMessageContaining("Số dư không đủ");
-
-            // Phải ném exception trước khi trả response → không tạo được AuthResponse
-            verify(sessionService, never()).findActiveByUserId(any());
-        }
-
-        @Test
-        @DisplayName("Máy IN_USE nhưng InsufficientBalance không bị nuốt → phân biệt đúng với IllegalState")
-        void machineInUse_byIllegalState_stillReconnects() {
-            TUserEntity user = buildActiveUser(1L, "0901234567", "hashed");
-            SessionResponse existingSession = buildSession(99L, 1L, 5L);
-            UserResponse userResp = UserResponse.builder().id(1L).build();
-            LoginRequest req = buildLoginRequest("0901234567", "pass", 5L);
-
-            when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(user));
-            when(passwordEncoder.matches("pass", "hashed")).thenReturn(true);
-            when(jwtTokenProvider.generateToken(1L, "0901234567")).thenReturn("jwt-token");
-            when(selfProxy.createSessionInNewTransaction(1L, 5L))
-                    .thenThrow(new IllegalStateException("Máy không khả dụng"));
-            when(sessionService.findActiveByUserId(1L)).thenReturn(existingSession);
-            when(userMapper.toResponse(user)).thenReturn(userResp);
-
-            AuthResponse result = authService.login(req);
-
-            assertThat(result.getSession()).isEqualTo(existingSession);
         }
     }
 
