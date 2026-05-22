@@ -4,6 +4,7 @@ import com.netcoffee.constant.AppConstant;
 import com.netcoffee.entity.TSessionEntity;
 import com.netcoffee.entity.TUserEntity;
 import com.netcoffee.enumtype.SessionStatusEnum;
+import com.netcoffee.exception.InsufficientBalanceException;
 import com.netcoffee.repository.SessionRepository;
 import com.netcoffee.service.SessionBillingService;
 import com.netcoffee.service.SessionService;
@@ -56,7 +57,7 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         TUserEntity user = userService.getEntityById(userId);
 
         if (user.getBalance().compareTo(AppConstant.SESSION_MINIMUM_CHARGE) < 0) {
-            throw new IllegalStateException("Số dư không đủ để bắt đầu phiên. Cần tối thiểu "
+            throw new InsufficientBalanceException("Số dư không đủ để mở máy. Cần tối thiểu "
                     + AppConstant.SESSION_MINIMUM_CHARGE.toPlainString() + "đ");
         }
 

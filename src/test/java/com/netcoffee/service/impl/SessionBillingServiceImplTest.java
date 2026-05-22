@@ -9,6 +9,7 @@ import com.netcoffee.repository.SessionRepository;
 import com.netcoffee.service.SessionService;
 import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -111,13 +112,13 @@ class SessionBillingServiceImplTest {
         }
 
         @Test
-        @DisplayName("Balance không đủ → ném exception, không deduct, không set lastBilledAt")
+        @DisplayName("Balance không đủ → InsufficientBalanceException (402), không deduct, không set lastBilledAt")
         void insufficientBalance_throwsWithoutSideEffects() {
             TUserEntity user = buildUser(10L, new BigDecimal("1000")); // < 2000
             when(userService.getEntityById(10L)).thenReturn(user);
 
             assertThatThrownBy(() -> billingService.chargeMinimumFee(10L, 1L))
-                    .isInstanceOf(IllegalStateException.class)
+                    .isInstanceOf(InsufficientBalanceException.class)
                     .hasMessageContaining("Số dư không đủ");
 
             verify(userService, never()).deduct(any(), any());

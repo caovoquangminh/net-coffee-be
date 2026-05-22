@@ -7,6 +7,7 @@ import com.netcoffee.dto.response.AuthResponse;
 import com.netcoffee.dto.response.SessionResponse;
 import com.netcoffee.dto.response.UserResponse;
 import com.netcoffee.entity.TUserEntity;
+import com.netcoffee.exception.InsufficientBalanceException;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.UserRepository;
 import com.netcoffee.security.JwtTokenProvider;
@@ -88,19 +89,20 @@ public class AuthServiceImpl implements AuthService {
             session = self.createSessionInNewTransaction(user.getId(), request.getMachineId());
             log.info("Auto session created: user={}, machine={}, session={}",
                     user.getId(), request.getMachineId(), session.getId());
+        } catch (InsufficientBalanceException e) {
+            // Số dư không đủ phí mở máy → propagate để FE nhận 402
+            throw e;
         } catch (Exception e) {
             log.warn("Could not create session on login ({}), checking for existing session", e.getMessage());
             // Máy có thể đang IN_USE bởi chính session cũ của user → trả về session đó
-            if (request.getMachineId() != null) {
-                try {
-                    SessionResponse existing = sessionService.findActiveByUserId(user.getId());
-                    if (existing != null && existing.getMachineId().equals(request.getMachineId())) {
-                        session = existing;
-                        log.info("Reconnected to existing session: user={}, session={}", user.getId(), session.getId());
-                    }
-                } catch (Exception ex) {
-                    log.warn("Could not find existing session for user {}: {}", user.getId(), ex.getMessage());
+            try {
+                SessionResponse existing = sessionService.findActiveByUserId(user.getId());
+                if (existing != null && existing.getMachineId().equals(request.getMachineId())) {
+                    session = existing;
+                    log.info("Reconnected to existing session: user={}, session={}", user.getId(), session.getId());
                 }
+            } catch (Exception ex) {
+                log.warn("Could not find existing session for user {}: {}", user.getId(), ex.getMessage());
             }
         }
 
@@ -109,6 +111,23 @@ public class AuthServiceImpl implements AuthService {
                 .user(userMapper.toResponse(user))
                 .session(session)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void logout(Long userId) {
+        SessionResponse activeSession = sessionService.findActiveByUserId(userId);
+        if (activeSession == null) {
+            log.info("Logout: user={} has no active session", userId);
+            return;
+        }
+        try {
+            sessionService.endSession(activeSession.getId(), userId);
+            log.info("Logout: user={} ended session={}", userId, activeSession.getId());
+        } catch (Exception e) {
+            log.warn("Could not end session on logout: user={}, session={}, reason={}",
+                    userId, activeSession.getId(), e.getMessage());
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

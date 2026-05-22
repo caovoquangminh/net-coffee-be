@@ -11,4 +11,6 @@ public interface AuthService
     AuthResponse login(LoginRequest request);
 
     UserResponse register(RegisterRequest request);
+
+    void logout(Long userId);
 }
