@@ -24,7 +24,12 @@ public class SessionController {
 
     @PostMapping("/start")
     public ResponseEntity<ApiResponse<SessionResponse>> startSession(
-            @Valid @RequestBody StartSessionRequest request) {
+            @Valid @RequestBody StartSessionRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        Long tokenUserId = Long.parseLong(userDetails.getUsername());
+        if (!tokenUserId.equals(request.getUserId())) {
+            throw new AccessDeniedException("Không thể mở session cho tài khoản khác");
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Session bắt đầu", sessionService.startSession(request)));
     }

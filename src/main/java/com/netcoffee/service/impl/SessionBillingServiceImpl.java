@@ -151,9 +151,9 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         log.debug("Billing tick: session={}, unbilled={}s, deduct={}",
                 session.getId(), unbilledSeconds, deductAmount);
 
-        // Kiểm tra lại sau khi trừ
-        TUserEntity updatedUser = userService.getEntityById(session.getUserId());
-        if (updatedUser.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
+        // deductAmount = calcCharge.min(user.getBalance()) → nếu deductAmount >= balance
+        // thì toàn bộ balance vừa bị lấy hết. Không đọc lại entity (L1 cache sẽ stale).
+        if (deductAmount.compareTo(user.getBalance()) >= 0) {
             log.info("Session {} balance exhausted after billing, force ending", session.getId());
             sessionService.forceEndSession(session.getId());
         }
