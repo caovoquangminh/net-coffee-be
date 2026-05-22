@@ -1,5 +1,6 @@
 package com.netcoffee.service.impl;
 
+import com.netcoffee.billing.DefaultBillingStrategy;
 import com.netcoffee.constant.AppConstant;
 import com.netcoffee.entity.TSessionEntity;
 import com.netcoffee.entity.TUserEntity;
@@ -40,46 +41,10 @@ class SessionBillingServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        billingService = new SessionBillingServiceImpl(sessionRepository, userService, transactionService);
+        billingService = new SessionBillingServiceImpl(
+                sessionRepository, userService, transactionService, new DefaultBillingStrategy());
         billingService.setSessionService(sessionService);
         billingService.self = billingService; // bypass proxy for unit tests
-    }
-
-    // =========================================================================
-    // calcCharge (helper — test directly because it's the core math)
-    // =========================================================================
-
-    @Nested
-    @DisplayName("calcCharge — tính tiền theo giây")
-    class CalcChargeTest {
-
-        @Test
-        @DisplayName("60 giây với giá 8000/giờ → 133.33đ")
-        void sixtySeconds_returnsCorrectAmount() {
-            BigDecimal result = SessionBillingServiceImpl.calcCharge(new BigDecimal("8000"), 60);
-            assertThat(result).isEqualByComparingTo("133.33");
-        }
-
-        @Test
-        @DisplayName("90 giây (1.5 phút) với giá 8000/giờ → 200.00đ")
-        void ninetySeconds_returnsCorrectAmount() {
-            BigDecimal result = SessionBillingServiceImpl.calcCharge(new BigDecimal("8000"), 90);
-            assertThat(result).isEqualByComparingTo("200.00");
-        }
-
-        @Test
-        @DisplayName("1 giây với giá 8000/giờ → 2.22đ")
-        void oneSecond_returnsCorrectAmount() {
-            BigDecimal result = SessionBillingServiceImpl.calcCharge(new BigDecimal("8000"), 1);
-            assertThat(result).isEqualByComparingTo("2.22");
-        }
-
-        @Test
-        @DisplayName("0 giây → 0đ")
-        void zeroSeconds_returnsZero() {
-            BigDecimal result = SessionBillingServiceImpl.calcCharge(new BigDecimal("8000"), 0);
-            assertThat(result).isEqualByComparingTo(BigDecimal.ZERO);
-        }
     }
 
     // =========================================================================

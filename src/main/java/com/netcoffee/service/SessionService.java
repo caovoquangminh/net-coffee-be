@@ -7,6 +7,8 @@ import java.util.List;
 
 public interface SessionService {
 
+    SessionResponse getOrStartSession(Long userId, Long machineId);
+
     SessionResponse startSession(StartSessionRequest request);
 
     SessionResponse endSession(Long sessionId, Long requestingUserId);

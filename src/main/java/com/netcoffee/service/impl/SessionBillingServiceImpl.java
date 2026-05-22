@@ -1,5 +1,6 @@
 package com.netcoffee.service.impl;
 
+import com.netcoffee.billing.BillingStrategy;
 import com.netcoffee.constant.AppConstant;
 import com.netcoffee.entity.TSessionEntity;
 import com.netcoffee.entity.TUserEntity;
@@ -20,7 +21,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -34,6 +34,7 @@ public class SessionBillingServiceImpl implements SessionBillingService {
     private final SessionRepository sessionRepository;
     private final UserService userService;
     private final TransactionService transactionService;
+    private final BillingStrategy billingStrategy;
 
     private SessionService sessionService;
 
@@ -133,7 +134,7 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         }
 
         long unbilledSeconds = ChronoUnit.SECONDS.between(lastBilledAt, now);
-        BigDecimal deductAmount = calcCharge(session.getPricePerHourSnapshot(), unbilledSeconds)
+        BigDecimal deductAmount = billingStrategy.calcCharge(session.getPricePerHourSnapshot(), unbilledSeconds)
                 .min(user.getBalance());
 
         userService.deduct(session.getUserId(), deductAmount);
@@ -182,7 +183,7 @@ public class SessionBillingServiceImpl implements SessionBillingService {
             return;
         }
 
-        BigDecimal deductAmount = calcCharge(pricePerHour, unbilledSeconds)
+        BigDecimal deductAmount = billingStrategy.calcCharge(pricePerHour, unbilledSeconds)
                 .min(user.getBalance());
 
         if (deductAmount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -202,19 +203,4 @@ public class SessionBillingServiceImpl implements SessionBillingService {
                 sessionId, unbilledSeconds, deductAmount);
     }
 
-    // -------------------------------------------------------------------------
-    // Helper
-    // -------------------------------------------------------------------------
-
-    /**
-     * Tính tiền cho số giây đã dùng theo giá/giờ.
-     * Kết quả làm tròn đến 2 chữ số thập phân (đơn vị đồng).
-     */
-    static BigDecimal calcCharge(BigDecimal pricePerHour, long seconds) {
-        if (seconds <= 0) return BigDecimal.ZERO;
-        BigDecimal pricePerSecond = pricePerHour.divide(
-                BigDecimal.valueOf(3600), 10, RoundingMode.HALF_UP);
-        return pricePerSecond.multiply(BigDecimal.valueOf(seconds))
-                .setScale(2, RoundingMode.HALF_UP);
-    }
 }

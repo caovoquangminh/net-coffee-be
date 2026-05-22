@@ -2,6 +2,7 @@ package com.netcoffee.service.impl;
 
 import com.netcoffee.constant.AppConstant;
 import com.netcoffee.dto.request.StartSessionRequest;
+import com.netcoffee.exception.InsufficientBalanceException;
 import com.netcoffee.dto.response.SessionResponse;
 import com.netcoffee.entity.TMachineEntity;
 import com.netcoffee.entity.TPricingPlanEntity;
@@ -23,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -49,6 +51,27 @@ public class SessionServiceImpl implements SessionService {
     @Autowired
     public void setSessionBillingService(@Lazy SessionBillingService sessionBillingService) {
         this.sessionBillingService = sessionBillingService;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public SessionResponse getOrStartSession(Long userId, Long machineId) {
+        StartSessionRequest request = new StartSessionRequest();
+        request.setUserId(userId);
+        request.setMachineId(machineId);
+        try {
+            return startSession(request);
+        } catch (InsufficientBalanceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("Could not start session for user={}: {}, checking for existing", userId, e.getMessage());
+            SessionResponse existing = findActiveByUserId(userId);
+            if (existing != null && existing.getMachineId().equals(machineId)) {
+                log.info("Reconnected to existing session: user={}, session={}", userId, existing.getId());
+                return existing;
+            }
+            return null;
+        }
     }
 
     @Override
