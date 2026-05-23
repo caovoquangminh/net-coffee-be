@@ -34,7 +34,8 @@ public class SecurityConfig {
                     "/api/webhook/**",
                     "/actuator/health",
                     "/api/qr-payments/generate-by-phone",
-                    "/api/qr-payments/*/status"
+                    "/api/qr-payments/*/status",
+                    "/ws/**"
                 ).permitAll()
                 .anyRequest().authenticated()
             )
