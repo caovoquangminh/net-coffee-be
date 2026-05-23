@@ -11,6 +11,7 @@ import com.netcoffee.mapper.SessionMapper;
 import com.netcoffee.repository.MachineRepository;
 import com.netcoffee.repository.PricingPlanRepository;
 import com.netcoffee.repository.SessionRepository;
+import com.netcoffee.repository.UserRepository;
 import com.netcoffee.service.SessionBillingService;
 import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
@@ -38,6 +39,7 @@ class SessionServiceImplTest {
     @Mock SessionRepository sessionRepository;
     @Mock MachineRepository machineRepository;
     @Mock PricingPlanRepository pricingPlanRepository;
+    @Mock UserRepository userRepository;
     @Mock UserService userService;
     @Mock TransactionService transactionService;
     @Mock SessionMapper sessionMapper;
@@ -49,7 +51,7 @@ class SessionServiceImplTest {
     void setUp() {
         sessionService = new SessionServiceImpl(
                 sessionRepository, machineRepository, pricingPlanRepository,
-                userService, transactionService, sessionMapper);
+                userRepository, userService, transactionService, sessionMapper);
         sessionService.setSessionBillingService(sessionBillingService);
     }
 

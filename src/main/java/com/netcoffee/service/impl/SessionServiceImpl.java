@@ -2,11 +2,13 @@ package com.netcoffee.service.impl;
 
 import com.netcoffee.constant.AppConstant;
 import com.netcoffee.dto.request.StartSessionRequest;
+import com.netcoffee.dto.response.ActiveSessionWithUserResponse;
 import com.netcoffee.exception.InsufficientBalanceException;
 import com.netcoffee.dto.response.SessionResponse;
 import com.netcoffee.entity.TMachineEntity;
 import com.netcoffee.entity.TPricingPlanEntity;
 import com.netcoffee.entity.TSessionEntity;
+import com.netcoffee.entity.TUserEntity;
 import com.netcoffee.enumtype.MachineStatusEnum;
 import com.netcoffee.enumtype.SessionStatusEnum;
 import com.netcoffee.exception.ResourceNotFoundException;
@@ -14,6 +16,7 @@ import com.netcoffee.mapper.SessionMapper;
 import com.netcoffee.repository.MachineRepository;
 import com.netcoffee.repository.PricingPlanRepository;
 import com.netcoffee.repository.SessionRepository;
+import com.netcoffee.repository.UserRepository;
 import com.netcoffee.service.SessionBillingService;
 import com.netcoffee.service.SessionService;
 import com.netcoffee.service.TransactionService;
@@ -33,6 +36,9 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -42,6 +48,7 @@ public class SessionServiceImpl implements SessionService {
     private final SessionRepository sessionRepository;
     private final MachineRepository machineRepository;
     private final PricingPlanRepository pricingPlanRepository;
+    private final UserRepository userRepository;
     private final UserService userService;
     private final TransactionService transactionService;
     private final SessionMapper sessionMapper;
@@ -191,5 +198,28 @@ public class SessionServiceImpl implements SessionService {
                 .findByUserIdAndStatus(userId, SessionStatusEnum.ACTIVE)
                 .map(sessionMapper::toResponse)
                 .orElse(null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ActiveSessionWithUserResponse> findAllActiveWithUserInfo() {
+        List<TSessionEntity> sessions = sessionRepository.findAllActiveSessions();
+        if (sessions.isEmpty()) return List.of();
+
+        Set<Long> userIds = sessions.stream().map(TSessionEntity::getUserId).collect(Collectors.toSet());
+        Map<Long, TUserEntity> userMap = userRepository.findAllById(userIds)
+                .stream().collect(Collectors.toMap(TUserEntity::getId, u -> u));
+
+        return sessions.stream().map(s -> {
+            TUserEntity user = userMap.get(s.getUserId());
+            return ActiveSessionWithUserResponse.builder()
+                    .sessionId(s.getId())
+                    .machineId(s.getMachineId())
+                    .userId(s.getUserId())
+                    .phoneNumber(user != null ? user.getPhoneNumber() : "")
+                    .fullName(user != null ? user.getFullName() : null)
+                    .startedAt(s.getStartedAt())
+                    .build();
+        }).toList();
     }
 }

@@ -1,6 +1,7 @@
 package com.netcoffee.controller;
 
 import com.netcoffee.dto.request.StartSessionRequest;
+import com.netcoffee.dto.response.ActiveSessionWithUserResponse;
 import com.netcoffee.dto.response.ApiResponse;
 import com.netcoffee.dto.response.SessionResponse;
 import com.netcoffee.service.SessionService;
@@ -52,6 +53,11 @@ public class SessionController {
             throw new AccessDeniedException("Không có quyền kết thúc phiên này");
         }
         return ResponseEntity.ok(ApiResponse.ok("Session bị kết thúc", sessionService.forceEndSession(id)));
+    }
+
+    @GetMapping("/all-active")
+    public ResponseEntity<ApiResponse<List<ActiveSessionWithUserResponse>>> getAllActiveSessions() {
+        return ResponseEntity.ok(ApiResponse.ok(sessionService.findAllActiveWithUserInfo()));
     }
 
     // /active and /my must be placed BEFORE /{id} to avoid Spring matching them as IDs
