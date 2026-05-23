@@ -32,12 +32,13 @@ public class CustomUserDetailsService implements UserDetailsService {
     }
 
     private UserDetails buildUserDetails(TUserEntity user) {
+        String role = user.getRole() != null ? user.getRole().name() : "STAFF";
         return new User(
                 String.valueOf(user.getId()),
                 user.getPasswordHash(),
                 user.getIsActive(),
                 true, true, true,
-                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                List.of(new SimpleGrantedAuthority("ROLE_" + role))
         );
     }
 }

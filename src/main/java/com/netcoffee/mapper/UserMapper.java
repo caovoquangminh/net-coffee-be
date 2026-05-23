@@ -17,6 +17,7 @@ public class UserMapper {
                 .balance(entity.getBalance())
                 .totalSpent(entity.getTotalSpent())
                 .isActive(entity.getIsActive())
+                .role(entity.getRole())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

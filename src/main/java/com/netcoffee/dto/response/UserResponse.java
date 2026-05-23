@@ -1,5 +1,6 @@
 package com.netcoffee.dto.response;
 
+import com.netcoffee.enumtype.UserRoleEnum;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -17,5 +18,6 @@ public class UserResponse
     private BigDecimal balance;
     private BigDecimal totalSpent;
     private Boolean isActive;
+    private UserRoleEnum role;
     private LocalDateTime createdAt;
 }

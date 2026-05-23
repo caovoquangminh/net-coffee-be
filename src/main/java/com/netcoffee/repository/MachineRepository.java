@@ -25,6 +25,8 @@ public interface MachineRepository extends JpaRepository<TMachineEntity, Long>
 
     boolean existsByMachineCode(String machineCode);
 
+    long countByStatus(MachineStatusEnum status);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT m FROM TMachineEntity m WHERE m.id = :id")
     Optional<TMachineEntity> findByIdForUpdate(@Param("id") Long id);
