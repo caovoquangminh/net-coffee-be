@@ -36,6 +36,14 @@ public class TransactionServiceImpl implements TransactionService {
     @Transactional
     public TTransactionEntity recordTopUp(Long userId, BigDecimal amount,
                                           PaymentMethodEnum method, String referenceCode) {
+        return recordTopUp(userId, amount, method, referenceCode, "Nạp tiền");
+    }
+
+    @Override
+    @Transactional
+    public TTransactionEntity recordTopUp(Long userId, BigDecimal amount,
+                                          PaymentMethodEnum method, String referenceCode,
+                                          String description) {
         TUserEntity user = userService.getEntityById(userId);
 
         TTransactionEntity tx = TTransactionEntity.builder()
@@ -44,7 +52,7 @@ public class TransactionServiceImpl implements TransactionService {
                 .amount(amount)
                 .balanceBefore(user.getBalance())
                 .balanceAfter(user.getBalance().add(amount))
-                .description("Nạp tiền")
+                .description(description)
                 .paymentMethod(method)
                 .referenceCode(referenceCode)
                 .build();

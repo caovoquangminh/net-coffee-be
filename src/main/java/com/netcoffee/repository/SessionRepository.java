@@ -30,4 +30,7 @@ public interface SessionRepository extends JpaRepository<TSessionEntity, Long>
     @Modifying
     @Query("UPDATE TSessionEntity s SET s.lastBilledAt = :lastBilledAt WHERE s.id = :id")
     void updateLastBilledAt(@Param("id") Long id, @Param("lastBilledAt") LocalDateTime lastBilledAt);
+
+    @Query("SELECT s FROM TSessionEntity s WHERE s.status != 'ACTIVE' AND s.createdAt >= :from ORDER BY s.createdAt DESC")
+    Page<TSessionEntity> findEndedSince(@Param("from") LocalDateTime from, Pageable pageable);
 }

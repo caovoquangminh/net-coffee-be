@@ -113,6 +113,10 @@ public class SessionBillingServiceImpl implements SessionBillingService {
     // -------------------------------------------------------------------------
 
     void processBilling(TSessionEntity session) {
+        if (Boolean.TRUE.equals(session.getIsFree())) {
+            return;
+        }
+
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
         // Điểm bắt đầu charge: sau khi phí minimum đã cover

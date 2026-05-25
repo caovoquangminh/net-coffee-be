@@ -1,5 +1,6 @@
 package com.netcoffee.entity;
 
+import com.netcoffee.enumtype.UserRoleEnum;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -37,6 +38,11 @@ public class TUserEntity
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    @Builder.Default
+    private UserRoleEnum role = UserRoleEnum.STAFF;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

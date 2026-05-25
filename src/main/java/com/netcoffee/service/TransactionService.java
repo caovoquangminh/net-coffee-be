@@ -16,5 +16,7 @@ public interface TransactionService
 
     TTransactionEntity recordTopUp(Long userId, BigDecimal amount, PaymentMethodEnum method, String referenceCode);
 
+    TTransactionEntity recordTopUp(Long userId, BigDecimal amount, PaymentMethodEnum method, String referenceCode, String description);
+
     TTransactionEntity recordDeduct(Long userId, BigDecimal amount, Long sessionId, String description);
 }

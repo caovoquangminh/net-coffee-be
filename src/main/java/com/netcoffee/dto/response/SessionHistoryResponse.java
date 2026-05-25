@@ -7,18 +7,21 @@ import lombok.Getter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Getter @Builder
-public class SessionResponse
-{
+@Getter
+@Builder
+public class SessionHistoryResponse {
 
     private Long id;
     private Long userId;
+    private String phoneNumber;
+    private String fullName;
     private Long machineId;
+    private String machineCode;
+    private String machineName;
     private LocalDateTime startedAt;
     private LocalDateTime endedAt;
     private Long durationSeconds;
     private BigDecimal totalCost;
     private SessionStatusEnum status;
-    private BigDecimal pricePerHourSnapshot;
     private Boolean isFree;
 }
