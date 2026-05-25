@@ -84,12 +84,15 @@ public class UserManagementServiceImpl implements UserManagementService {
         if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
             throw new IllegalArgumentException("Số điện thoại đã được đăng ký");
         }
+        UserRoleEnum role = (request.getRole() != null && request.getRole() != UserRoleEnum.ADMIN)
+                ? request.getRole()
+                : UserRoleEnum.CUSTOMER;
         TUserEntity user = TUserEntity.builder()
                 .phoneNumber(request.getPhoneNumber())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName() != null ? request.getFullName().trim() : null)
                 .isActive(true)
-                .role(UserRoleEnum.CUSTOMER)
+                .role(role)
                 .build();
         return userMapper.toResponse(userRepository.save(user));
     }

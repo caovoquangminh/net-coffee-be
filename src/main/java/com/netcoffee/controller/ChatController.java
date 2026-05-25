@@ -10,8 +10,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 
 @Controller
 @RequiredArgsConstructor
@@ -26,7 +25,7 @@ public class ChatController {
             @Payload ChatMessageDto message
     ) {
         message.setMachineId(machineId);
-        message.setTimestamp(LocalDateTime.now(ZoneOffset.UTC));
+        message.setTimestamp(Instant.now());
         messagingTemplate.convertAndSend("/topic/chat/" + machineId, message);
     }
 

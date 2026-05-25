@@ -41,9 +41,11 @@ public class DashboardController {
 
         BigDecimal todayNet = transactionRepository.sumByTypeBetween(TransactionTypeEnum.DEDUCT, todayStart, todayEnd);
         BigDecimal todayFood = foodOrderRepository.sumByStatusBetween(OrderStatusEnum.DONE, todayStart, todayEnd);
+        BigDecimal todayTopUp = transactionRepository.sumByTypeBetween(TransactionTypeEnum.TOPUP, todayStart, todayEnd);
 
         BigDecimal monthNet = transactionRepository.sumByTypeBetween(TransactionTypeEnum.DEDUCT, monthStart, monthEnd);
         BigDecimal monthFood = foodOrderRepository.sumByStatusBetween(OrderStatusEnum.DONE, monthStart, monthEnd);
+        BigDecimal monthTopUp = transactionRepository.sumByTypeBetween(TransactionTypeEnum.TOPUP, monthStart, monthEnd);
 
         long total = machineRepository.count();
         long inUse = machineRepository.countByStatus(MachineStatusEnum.IN_USE);
@@ -51,9 +53,11 @@ public class DashboardController {
         DashboardStatsResponse stats = DashboardStatsResponse.builder()
                 .todayNetRevenue(todayNet)
                 .todayFoodRevenue(todayFood)
+                .todayCashTopUp(todayTopUp)
                 .todayTotalRevenue(todayNet.add(todayFood))
                 .monthNetRevenue(monthNet)
                 .monthFoodRevenue(monthFood)
+                .monthCashTopUp(monthTopUp)
                 .monthTotalRevenue(monthNet.add(monthFood))
                 .totalMachines(total)
                 .machinesInUse(inUse)

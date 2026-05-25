@@ -1,5 +1,6 @@
 package com.netcoffee.dto.request;
 
+import com.netcoffee.enumtype.UserRoleEnum;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -17,4 +18,7 @@ public class CreateCustomerRequest {
     private String password;
 
     private String fullName;
+
+    /** CUSTOMER (default) or STAFF — ADMIN is ignored */
+    private UserRoleEnum role;
 }
