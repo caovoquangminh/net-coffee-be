@@ -11,6 +11,7 @@ import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.UserRepository;
 import com.netcoffee.security.JwtTokenProvider;
 import com.netcoffee.service.AuthService;
+import com.netcoffee.enumtype.UserRoleEnum;
 import com.netcoffee.service.SessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class AuthServiceImpl implements AuthService {
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .isActive(true)
+                .role(UserRoleEnum.CUSTOMER)
                 .build();
 
         return userMapper.toResponse(userRepository.save(user));

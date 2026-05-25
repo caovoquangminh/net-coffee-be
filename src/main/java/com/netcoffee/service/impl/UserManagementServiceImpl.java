@@ -1,11 +1,13 @@
 package com.netcoffee.service.impl;
 
 import com.netcoffee.dto.request.ChangePasswordRequest;
+import com.netcoffee.dto.request.CreateCustomerRequest;
 import com.netcoffee.dto.request.ResetPasswordRequest;
 import com.netcoffee.dto.request.UpdateProfileRequest;
 import com.netcoffee.dto.request.UpdateUserRequest;
 import com.netcoffee.dto.response.UserResponse;
 import com.netcoffee.entity.TUserEntity;
+import com.netcoffee.enumtype.UserRoleEnum;
 import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.UserRepository;
@@ -34,6 +36,10 @@ public class UserManagementServiceImpl implements UserManagementService {
         }
         if (request.getIsActive() != null) {
             user.setIsActive(request.getIsActive());
+        }
+        // Cho phép đổi giữa STAFF và CUSTOMER; không cho đổi thành ADMIN
+        if (request.getRole() != null && request.getRole() != UserRoleEnum.ADMIN) {
+            user.setRole(request.getRole());
         }
 
         return userMapper.toResponse(userRepository.save(user));
@@ -70,6 +76,22 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse createCustomer(CreateCustomerRequest request) {
+        if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            throw new IllegalArgumentException("Số điện thoại đã được đăng ký");
+        }
+        TUserEntity user = TUserEntity.builder()
+                .phoneNumber(request.getPhoneNumber())
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName() != null ? request.getFullName().trim() : null)
+                .isActive(true)
+                .role(UserRoleEnum.CUSTOMER)
+                .build();
+        return userMapper.toResponse(userRepository.save(user));
     }
 
     private TUserEntity findOrThrow(Long userId) {
