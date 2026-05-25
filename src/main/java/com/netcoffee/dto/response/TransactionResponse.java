@@ -20,5 +20,7 @@ public class TransactionResponse
     private String description;
     private PaymentMethodEnum paymentMethod;
     private String referenceCode;
+    private Long sessionId;
+    private Long performedByUserId;
     private LocalDateTime createdAt;
 }
