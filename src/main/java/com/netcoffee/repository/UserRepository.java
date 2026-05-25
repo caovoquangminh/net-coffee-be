@@ -1,6 +1,7 @@
 package com.netcoffee.repository;
 
 import com.netcoffee.entity.TUserEntity;
+import com.netcoffee.enumtype.UserRoleEnum;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import org.springframework.data.jpa.repository.Modifying;
@@ -32,4 +33,15 @@ public interface UserRepository extends JpaRepository<TUserEntity, Long>
     int decreaseBalance(@Param("id") Long id, @Param("amount") BigDecimal amount);
 
     List<TUserEntity> findByPhoneNumberContainingOrderByCreatedAtDesc(String phoneNumber);
+
+    List<TUserEntity> findByRoleOrderByCreatedAtDesc(UserRoleEnum role);
+
+    List<TUserEntity> findByRoleAndPhoneNumberContainingOrderByCreatedAtDesc(UserRoleEnum role, String phoneNumber);
+
+    /** Tất cả hội viên (CUSTOMER + STAFF), không bao gồm ADMIN. */
+    @Query("SELECT u FROM TUserEntity u WHERE u.role != :excludeRole ORDER BY u.createdAt DESC")
+    List<TUserEntity> findAllExcludingRole(@Param("excludeRole") UserRoleEnum excludeRole);
+
+    @Query("SELECT u FROM TUserEntity u WHERE u.role != :excludeRole AND u.phoneNumber LIKE %:phone% ORDER BY u.createdAt DESC")
+    List<TUserEntity> findByPhoneContainingExcludingRole(@Param("phone") String phone, @Param("excludeRole") UserRoleEnum excludeRole);
 }

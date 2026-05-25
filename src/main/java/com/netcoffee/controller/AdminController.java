@@ -1,6 +1,7 @@
 package com.netcoffee.controller;
 
 import com.netcoffee.constant.AppConstant;
+import com.netcoffee.dto.request.CreateCustomerRequest;
 import com.netcoffee.dto.request.ResetPasswordRequest;
 import com.netcoffee.dto.request.UpdateUserRequest;
 import com.netcoffee.dto.response.*;
@@ -8,6 +9,7 @@ import com.netcoffee.entity.TMachineEntity;
 import com.netcoffee.entity.TSessionEntity;
 import com.netcoffee.entity.TTransactionEntity;
 import com.netcoffee.entity.TUserEntity;
+import com.netcoffee.enumtype.UserRoleEnum;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.MachineRepository;
 import com.netcoffee.repository.SessionRepository;
@@ -53,10 +55,18 @@ public class AdminController {
     public ResponseEntity<ApiResponse<List<UserResponse>>> searchUsers(
             @RequestParam(defaultValue = "") String phone) {
         List<TUserEntity> users = phone.isBlank()
-                ? userRepository.findAll()
-                : userRepository.findByPhoneNumberContainingOrderByCreatedAtDesc(phone);
+                ? userRepository.findAllExcludingRole(UserRoleEnum.ADMIN)
+                : userRepository.findByPhoneContainingExcludingRole(phone, UserRoleEnum.ADMIN);
         List<UserResponse> result = users.stream().map(userMapper::toResponse).toList();
         return ResponseEntity.ok(ApiResponse.ok(result));
+    }
+
+    @PostMapping("/users")
+    public ResponseEntity<ApiResponse<UserResponse>> createCustomer(
+            @Valid @RequestBody CreateCustomerRequest request) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(ApiResponse.ok("Tạo tài khoản hội viên thành công",
+                        userManagementService.createCustomer(request)));
     }
 
     @GetMapping("/users/{id}")

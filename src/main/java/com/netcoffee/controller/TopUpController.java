@@ -5,12 +5,14 @@ import com.netcoffee.dto.request.AdminTopUpRequest;
 import com.netcoffee.dto.response.ApiResponse;
 import com.netcoffee.dto.response.UserResponse;
 import com.netcoffee.entity.TUserEntity;
+import com.netcoffee.enumtype.UserRoleEnum;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.UserRepository;
 import com.netcoffee.service.CashTopUpService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -24,20 +26,22 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/topup")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
 public class TopUpController {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final CashTopUpService cashTopUpService;
 
-    /** Tìm tài khoản khách theo số điện thoại (tối thiểu 3 ký tự). */
+    /** Tìm tài khoản hội viên (CUSTOMER) theo số điện thoại (tối thiểu 3 ký tự). */
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<List<UserResponse>>> searchCustomers(
             @RequestParam String phone) {
         if (phone == null || phone.length() < 3) {
             return ResponseEntity.ok(ApiResponse.ok(List.of()));
         }
-        List<TUserEntity> users = userRepository.findByPhoneNumberContainingOrderByCreatedAtDesc(phone);
+        List<TUserEntity> users = userRepository
+                .findByRoleAndPhoneNumberContainingOrderByCreatedAtDesc(UserRoleEnum.CUSTOMER, phone);
         return ResponseEntity.ok(ApiResponse.ok(users.stream().map(userMapper::toResponse).toList()));
     }
 

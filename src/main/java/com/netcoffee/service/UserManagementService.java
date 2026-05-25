@@ -1,6 +1,7 @@
 package com.netcoffee.service;
 
 import com.netcoffee.dto.request.ChangePasswordRequest;
+import com.netcoffee.dto.request.CreateCustomerRequest;
 import com.netcoffee.dto.request.ResetPasswordRequest;
 import com.netcoffee.dto.request.UpdateProfileRequest;
 import com.netcoffee.dto.request.UpdateUserRequest;
@@ -19,4 +20,7 @@ public interface UserManagementService {
 
     /** User tự đổi mật khẩu sau khi xác thực mật khẩu cũ. */
     void changeMyPassword(Long userId, ChangePasswordRequest request);
+
+    /** Admin tạo tài khoản hội viên mới (role = CUSTOMER). */
+    UserResponse createCustomer(CreateCustomerRequest request);
 }
