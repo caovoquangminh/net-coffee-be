@@ -18,6 +18,8 @@ public class TransactionMapper {
                 .description(entity.getDescription())
                 .paymentMethod(entity.getPaymentMethod())
                 .referenceCode(entity.getReferenceCode())
+                .sessionId(entity.getSessionId())
+                .performedByUserId(entity.getPerformedByUserId())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

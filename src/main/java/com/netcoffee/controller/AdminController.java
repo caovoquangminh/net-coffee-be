@@ -1,20 +1,19 @@
 package com.netcoffee.controller;
 
 import com.netcoffee.constant.AppConstant;
-import com.netcoffee.dto.request.AdminTopUpRequest;
+import com.netcoffee.dto.request.ResetPasswordRequest;
+import com.netcoffee.dto.request.UpdateUserRequest;
 import com.netcoffee.dto.response.*;
 import com.netcoffee.entity.TMachineEntity;
 import com.netcoffee.entity.TSessionEntity;
 import com.netcoffee.entity.TTransactionEntity;
 import com.netcoffee.entity.TUserEntity;
-import com.netcoffee.enumtype.PaymentMethodEnum;
-import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.MachineRepository;
 import com.netcoffee.repository.SessionRepository;
 import com.netcoffee.repository.TransactionRepository;
 import com.netcoffee.repository.UserRepository;
-import com.netcoffee.service.TransactionService;
+import com.netcoffee.service.UserManagementService;
 import com.netcoffee.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,13 +40,13 @@ public class AdminController {
     private final UserRepository userRepository;
     private final UserService userService;
     private final UserMapper userMapper;
-    private final TransactionService transactionService;
+    private final UserManagementService userManagementService;
     private final TransactionRepository transactionRepository;
     private final SessionRepository sessionRepository;
     private final MachineRepository machineRepository;
 
     // -------------------------------------------------------------------------
-    // User management
+    // Member management
     // -------------------------------------------------------------------------
 
     @GetMapping("/users")
@@ -65,28 +64,24 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.ok(userService.findById(id)));
     }
 
-    // -------------------------------------------------------------------------
-    // Cash top-up
-    // -------------------------------------------------------------------------
-
-    @PostMapping("/users/{id}/topup")
-    @Transactional
-    public ResponseEntity<ApiResponse<UserResponse>> cashTopUp(
+    @PutMapping("/users/{id}")
+    public ResponseEntity<ApiResponse<UserResponse>> updateUser(
             @PathVariable Long id,
-            @Valid @RequestBody AdminTopUpRequest request) {
+            @Valid @RequestBody UpdateUserRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Cập nhật thành công",
+                userManagementService.adminUpdateUser(id, request)));
+    }
 
-        userService.topUp(id, request.getAmount());
-
-        String description = "Nạp tiền mặt" + (request.getNote() != null && !request.getNote().isBlank()
-                ? " - " + request.getNote() : "");
-        transactionService.recordTopUp(id, request.getAmount(), PaymentMethodEnum.CASH, null, description);
-
-        UserResponse updated = userService.findById(id);
-        return ResponseEntity.ok(ApiResponse.ok("Nạp tiền thành công", updated));
+    @PutMapping("/users/{id}/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @PathVariable Long id,
+            @Valid @RequestBody ResetPasswordRequest request) {
+        userManagementService.adminResetPassword(id, request);
+        return ResponseEntity.ok(ApiResponse.ok("Đặt lại mật khẩu thành công", null));
     }
 
     // -------------------------------------------------------------------------
-    // 30-day transaction history
+    // 30-day transaction history (admin view — includes performedBy)
     // -------------------------------------------------------------------------
 
     @GetMapping("/transactions")
@@ -101,18 +96,23 @@ public class AdminController {
 
         Page<TTransactionEntity> txPage = transactionRepository.findAllSince(from, pageable);
 
-        Set<Long> userIds = txPage.getContent().stream()
-                .map(TTransactionEntity::getUserId).collect(Collectors.toSet());
+        // Collect all user IDs: owners + performers
+        Set<Long> userIds = new HashSet<>();
+        txPage.getContent().forEach(tx -> {
+            userIds.add(tx.getUserId());
+            if (tx.getPerformedByUserId() != null) userIds.add(tx.getPerformedByUserId());
+        });
         Map<Long, TUserEntity> userMap = userRepository.findAllById(userIds)
                 .stream().collect(Collectors.toMap(TUserEntity::getId, u -> u));
 
         List<AdminTransactionResponse> content = txPage.getContent().stream().map(tx -> {
-            TUserEntity u = userMap.get(tx.getUserId());
+            TUserEntity owner    = userMap.get(tx.getUserId());
+            TUserEntity performer = tx.getPerformedByUserId() != null ? userMap.get(tx.getPerformedByUserId()) : null;
             return AdminTransactionResponse.builder()
                     .id(tx.getId())
                     .userId(tx.getUserId())
-                    .phoneNumber(u != null ? u.getPhoneNumber() : null)
-                    .fullName(u != null ? u.getFullName() : null)
+                    .phoneNumber(owner != null ? owner.getPhoneNumber() : null)
+                    .fullName(owner != null ? owner.getFullName() : null)
                     .type(tx.getType())
                     .amount(tx.getAmount())
                     .balanceBefore(tx.getBalanceBefore())
@@ -121,12 +121,14 @@ public class AdminController {
                     .paymentMethod(tx.getPaymentMethod())
                     .referenceCode(tx.getReferenceCode())
                     .sessionId(tx.getSessionId())
+                    .performedByUserId(tx.getPerformedByUserId())
+                    .performedByPhone(performer != null ? performer.getPhoneNumber() : null)
+                    .performedByName(performer != null ? performer.getFullName() : null)
                     .createdAt(tx.getCreatedAt())
                     .build();
         }).toList();
 
-        Page<AdminTransactionResponse> result = new PageImpl<>(content, pageable, txPage.getTotalElements());
-        return ResponseEntity.ok(ApiResponse.ok(result));
+        return ResponseEntity.ok(ApiResponse.ok(new PageImpl<>(content, pageable, txPage.getTotalElements())));
     }
 
     // -------------------------------------------------------------------------
@@ -175,7 +177,6 @@ public class AdminController {
                     .build();
         }).toList();
 
-        Page<SessionHistoryResponse> result = new PageImpl<>(content, pageable, sessionPage.getTotalElements());
-        return ResponseEntity.ok(ApiResponse.ok(result));
+        return ResponseEntity.ok(ApiResponse.ok(new PageImpl<>(content, pageable, sessionPage.getTotalElements())));
     }
 }

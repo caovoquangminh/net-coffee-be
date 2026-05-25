@@ -68,6 +68,10 @@ public class TTransactionEntity {
     @Column(name = "session_id")
     private Long sessionId;
 
+    /** Nhân viên/admin thực hiện — null nếu là giao dịch tự động (billing, QR). */
+    @Column(name = "performed_by_user_id")
+    private Long performedByUserId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

@@ -24,5 +24,8 @@ public class AdminTransactionResponse {
     private PaymentMethodEnum paymentMethod;
     private String referenceCode;
     private Long sessionId;
+    private Long performedByUserId;
+    private String performedByPhone;
+    private String performedByName;
     private LocalDateTime createdAt;
 }
