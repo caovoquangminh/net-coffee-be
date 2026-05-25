@@ -61,6 +61,10 @@ public class TSessionEntity
     @Column(name = "last_billed_at")
     private LocalDateTime lastBilledAt;
 
+    @Column(name = "is_free", nullable = false)
+    @Builder.Default
+    private Boolean isFree = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

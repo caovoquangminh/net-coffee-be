@@ -101,19 +101,26 @@ public class SessionServiceImpl implements SessionService {
                 .map(TPricingPlanEntity::getPricePerHour)
                 .orElse(AppConstant.SESSION_PRICE_PER_HOUR);
 
+        TUserEntity user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+        boolean isFree = user.getRole() != null && user.getRole().name().equals("ADMIN");
+
         TSessionEntity session = TSessionEntity.builder()
                 .userId(request.getUserId())
                 .machineId(request.getMachineId())
                 .status(SessionStatusEnum.ACTIVE)
                 .pricePerHourSnapshot(pricePerHour)
+                .isFree(isFree)
                 .build();
 
         session = sessionRepository.save(session);
 
         machineRepository.updateStatusAndSession(machine.getId(), MachineStatusEnum.IN_USE, session.getId());
 
-        // chargeMinimumFee cũng set lastBilledAt = startedAt + SESSION_MINIMUM_MINUTES
-        sessionBillingService.chargeMinimumFee(request.getUserId(), session.getId());
+        if (!isFree) {
+            // chargeMinimumFee cũng set lastBilledAt = startedAt + SESSION_MINIMUM_MINUTES
+            sessionBillingService.chargeMinimumFee(request.getUserId(), session.getId());
+        }
 
         log.info("Session started: user={}, machine={}, session={}, price={}",
                 request.getUserId(), request.getMachineId(), session.getId(), pricePerHour);
@@ -150,17 +157,19 @@ public class SessionServiceImpl implements SessionService {
 
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
-        // Kết toán phần lẻ chưa bill trước khi đóng session
-        try {
-            sessionBillingService.chargeFinalBill(
-                    session.getUserId(),
-                    session.getId(),
-                    session.getLastBilledAt(),
-                    now,
-                    session.getPricePerHourSnapshot()
-            );
-        } catch (Exception e) {
-            log.warn("Final billing failed for session {}: {}", session.getId(), e.getMessage());
+        // Kết toán phần lẻ chưa bill trước khi đóng session (bỏ qua nếu session miễn phí)
+        if (!Boolean.TRUE.equals(session.getIsFree())) {
+            try {
+                sessionBillingService.chargeFinalBill(
+                        session.getUserId(),
+                        session.getId(),
+                        session.getLastBilledAt(),
+                        now,
+                        session.getPricePerHourSnapshot()
+                );
+            } catch (Exception e) {
+                log.warn("Final billing failed for session {}: {}", session.getId(), e.getMessage());
+            }
         }
 
         long durationSeconds = ChronoUnit.SECONDS.between(session.getStartedAt(), now);

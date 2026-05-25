@@ -19,6 +19,7 @@ public class SessionMapper {
                 .totalCost(entity.getTotalCost())
                 .status(entity.getStatus())
                 .pricePerHourSnapshot(entity.getPricePerHourSnapshot())
+                .isFree(entity.getIsFree())
                 .build();
     }
 }

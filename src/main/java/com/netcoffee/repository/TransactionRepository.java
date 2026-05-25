@@ -30,4 +30,7 @@ public interface TransactionRepository extends JpaRepository<TTransactionEntity,
 
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM TTransactionEntity t WHERE t.type = :type AND t.createdAt >= :from AND t.createdAt < :to")
     BigDecimal sumByTypeBetween(@Param("type") TransactionTypeEnum type, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Query("SELECT t FROM TTransactionEntity t WHERE t.createdAt >= :from ORDER BY t.createdAt DESC")
+    Page<TTransactionEntity> findAllSince(@Param("from") LocalDateTime from, Pageable pageable);
 }

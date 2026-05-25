@@ -2,6 +2,7 @@ package com.netcoffee.repository;
 
 import com.netcoffee.entity.TUserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,4 +30,6 @@ public interface UserRepository extends JpaRepository<TUserEntity, Long>
 
     @Modifying @Query("UPDATE TUserEntity u SET u.balance = u.balance - :amount, u.totalSpent = u.totalSpent + :amount WHERE u.id = :id AND u.balance >= :amount")
     int decreaseBalance(@Param("id") Long id, @Param("amount") BigDecimal amount);
+
+    List<TUserEntity> findByPhoneNumberContainingOrderByCreatedAtDesc(String phoneNumber);
 }
