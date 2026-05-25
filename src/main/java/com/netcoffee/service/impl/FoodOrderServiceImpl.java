@@ -12,6 +12,7 @@ import com.netcoffee.repository.FoodOrderRepository;
 import com.netcoffee.service.FoodOrderService;
 import com.netcoffee.service.MenuItemService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,7 @@ public class FoodOrderServiceImpl implements FoodOrderService {
     private final FoodOrderRepository foodOrderRepository;
     private final FoodOrderItemRepository foodOrderItemRepository;
     private final MenuItemService menuItemService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional
@@ -66,7 +68,9 @@ public class FoodOrderServiceImpl implements FoodOrderService {
         items.forEach(item -> item.setOrderId(orderId));
         foodOrderItemRepository.saveAll(items);
 
-        return toResponse(order, items);
+        OrderResponse response = toResponse(order, items);
+        messagingTemplate.convertAndSend("/topic/orders/new", response);
+        return response;
     }
 
     @Override
