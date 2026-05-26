@@ -40,7 +40,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     private final UserRepository userRepository;
@@ -67,6 +66,7 @@ public class AdminController {
     }
 
     @PostMapping("/users")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> createCustomer(
             @Valid @RequestBody CreateCustomerRequest request) {
         return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
@@ -75,11 +75,13 @@ public class AdminController {
     }
 
     @GetMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(userService.findById(id)));
     }
 
     @PutMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request) {
@@ -92,6 +94,7 @@ public class AdminController {
      * Ghi transaction DEDUCT với lý do và performedByUserId để audit.
      */
     @PostMapping("/users/{id}/deduct")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional
     public ResponseEntity<ApiResponse<UserResponse>> deductBalance(
             @PathVariable Long id,
@@ -129,6 +132,7 @@ public class AdminController {
     }
 
     @PutMapping("/users/{id}/reset-password")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @PathVariable Long id,
             @Valid @RequestBody ResetPasswordRequest request) {
@@ -141,6 +145,7 @@ public class AdminController {
     // -------------------------------------------------------------------------
 
     @GetMapping("/transactions")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<Page<AdminTransactionResponse>>> getTransactions(
             @RequestParam(defaultValue = "0") int page,
@@ -192,6 +197,7 @@ public class AdminController {
     // -------------------------------------------------------------------------
 
     @GetMapping("/sessions")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<Page<SessionHistoryResponse>>> getSessionHistory(
             @RequestParam(defaultValue = "0") int page,
