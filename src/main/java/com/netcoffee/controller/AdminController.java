@@ -56,6 +56,7 @@ public class AdminController {
     // -------------------------------------------------------------------------
 
     @GetMapping("/users")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<List<UserResponse>>> searchUsers(
             @RequestParam(defaultValue = "") String phone) {
         List<TUserEntity> users = phone.isBlank()
