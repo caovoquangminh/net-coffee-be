@@ -264,6 +264,9 @@ public class SessionServiceImpl implements SessionService {
                     .phoneNumber(user != null ? user.getPhoneNumber() : "")
                     .fullName(user != null ? user.getFullName() : null)
                     .startedAt(s.getStartedAt())
+                    .pricePerHourSnapshot(s.getPricePerHourSnapshot())
+                    .balance(user != null ? user.getBalance() : java.math.BigDecimal.ZERO)
+                    .isFree(s.getIsFree())
                     .build();
         }).toList();
     }

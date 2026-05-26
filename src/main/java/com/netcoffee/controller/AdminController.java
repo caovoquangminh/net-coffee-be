@@ -1,6 +1,7 @@
 package com.netcoffee.controller;
 
 import com.netcoffee.constant.AppConstant;
+import com.netcoffee.dto.request.AdminDeductRequest;
 import com.netcoffee.dto.request.CreateCustomerRequest;
 import com.netcoffee.dto.request.ResetPasswordRequest;
 import com.netcoffee.dto.request.UpdateUserRequest;
@@ -9,6 +10,9 @@ import com.netcoffee.entity.TMachineEntity;
 import com.netcoffee.entity.TSessionEntity;
 import com.netcoffee.entity.TTransactionEntity;
 import com.netcoffee.entity.TUserEntity;
+import com.netcoffee.enumtype.PaymentMethodEnum;
+import com.netcoffee.enumtype.TransactionTypeEnum;
+import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.enumtype.UserRoleEnum;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.MachineRepository;
@@ -80,6 +84,47 @@ public class AdminController {
             @Valid @RequestBody UpdateUserRequest request) {
         return ResponseEntity.ok(ApiResponse.ok("Cập nhật thành công",
                 userManagementService.adminUpdateUser(id, request)));
+    }
+
+    /**
+     * Admin trừ tiền thủ công — chỉ dùng khi nạp nhầm.
+     * Ghi transaction DEDUCT với lý do và performedByUserId để audit.
+     */
+    @PostMapping("/users/{id}/deduct")
+    @Transactional
+    public ResponseEntity<ApiResponse<UserResponse>> deductBalance(
+            @PathVariable Long id,
+            @Valid @RequestBody AdminDeductRequest request,
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
+
+        Long adminId = Long.parseLong(userDetails.getUsername());
+        TUserEntity user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+
+        if (request.getAmount().compareTo(user.getBalance()) > 0) {
+            throw new IllegalArgumentException(
+                    "Số dư không đủ để trừ. Hiện có: " + user.getBalance().toPlainString() + "đ");
+        }
+
+        BigDecimal balanceBefore = user.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(request.getAmount());
+
+        TTransactionEntity tx = TTransactionEntity.builder()
+                .userId(id)
+                .type(TransactionTypeEnum.DEDUCT)
+                .amount(request.getAmount())
+                .balanceBefore(balanceBefore)
+                .balanceAfter(balanceAfter)
+                .description("Admin trừ tiền: " + request.getReason())
+                .paymentMethod(PaymentMethodEnum.ADMIN)
+                .performedByUserId(adminId)
+                .build();
+        transactionRepository.save(tx);
+        userService.deduct(id, request.getAmount());
+
+        UserResponse updated = userMapper.toResponse(
+                userRepository.findById(id).orElseThrow());
+        return ResponseEntity.ok(ApiResponse.ok("Trừ tiền thành công", updated));
     }
 
     @PutMapping("/users/{id}/reset-password")
