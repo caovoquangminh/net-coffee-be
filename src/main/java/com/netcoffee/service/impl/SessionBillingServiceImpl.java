@@ -89,6 +89,12 @@ public class SessionBillingServiceImpl implements SessionBillingService {
     @Override
     @Scheduled(fixedRate = AppConstant.SESSION_BILLING_INTERVAL_SECONDS * 1000L)
     public void billingTick() {
+        try {
+            sessionService.cleanUpStaleSessions();
+        } catch (Exception e) {
+            log.error("Stale session cleanup error: {}", e.getMessage());
+        }
+
         List<TSessionEntity> activeSessions = sessionRepository.findAllActiveSessions();
         for (TSessionEntity session : activeSessions) {
             try {

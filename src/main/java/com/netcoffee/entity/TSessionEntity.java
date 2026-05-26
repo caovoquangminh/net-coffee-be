@@ -61,6 +61,13 @@ public class TSessionEntity
     @Column(name = "last_billed_at")
     private LocalDateTime lastBilledAt;
 
+    /**
+     * Thời điểm client gửi heartbeat gần nhất. null = chưa nhận heartbeat nào (phiên cũ trước khi deploy).
+     * billingTick dùng field này để phát hiện orphaned sessions.
+     */
+    @Column(name = "last_heartbeat_at")
+    private LocalDateTime lastHeartbeatAt;
+
     @Column(name = "is_free", nullable = false)
     @Builder.Default
     private Boolean isFree = false;

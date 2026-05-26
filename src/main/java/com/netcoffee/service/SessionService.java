@@ -23,4 +23,8 @@ public interface SessionService {
     SessionResponse findActiveByUserId(Long userId);
 
     List<ActiveSessionWithUserResponse> findAllActiveWithUserInfo();
+
+    void heartbeat(Long sessionId, Long userId);
+
+    void cleanUpStaleSessions();
 }

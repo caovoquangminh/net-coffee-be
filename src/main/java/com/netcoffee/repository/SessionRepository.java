@@ -33,6 +33,22 @@ public interface SessionRepository extends JpaRepository<TSessionEntity, Long>
     @Query("UPDATE TSessionEntity s SET s.lastBilledAt = :lastBilledAt WHERE s.id = :id")
     void updateLastBilledAt(@Param("id") Long id, @Param("lastBilledAt") LocalDateTime lastBilledAt);
 
+    @Modifying
+    @Query("UPDATE TSessionEntity s SET s.lastHeartbeatAt = :ts WHERE s.id = :id")
+    void updateLastHeartbeatAt(@Param("id") Long id, @Param("ts") LocalDateTime ts);
+
+    /**
+     * Tìm các session ACTIVE bị coi là orphaned:
+     *  - Đã nhận heartbeat nhưng heartbeat cuối cùng > staleThreshold (client đã chết)
+     *  - Chưa nhận heartbeat nào và startedAt > maxDurationThreshold (safety net cho phiên cũ)
+     */
+    @Query("SELECT s FROM TSessionEntity s WHERE s.status = 'ACTIVE' AND " +
+           "((s.lastHeartbeatAt IS NOT NULL AND s.lastHeartbeatAt < :staleThreshold) OR " +
+           "(s.lastHeartbeatAt IS NULL AND s.startedAt < :maxDurationThreshold))")
+    List<TSessionEntity> findStaleActiveSessions(
+            @Param("staleThreshold") LocalDateTime staleThreshold,
+            @Param("maxDurationThreshold") LocalDateTime maxDurationThreshold);
+
     @Query("SELECT s FROM TSessionEntity s WHERE s.status != 'ACTIVE' AND s.createdAt >= :from ORDER BY s.createdAt DESC")
     Page<TSessionEntity> findEndedSince(@Param("from") LocalDateTime from, Pageable pageable);
 }
