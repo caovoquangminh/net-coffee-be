@@ -210,6 +210,42 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
+    @Transactional
+    public void heartbeat(Long sessionId, Long userId) {
+        TSessionEntity session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null || session.getStatus() != SessionStatusEnum.ACTIVE) {
+            return;
+        }
+        if (!session.getUserId().equals(userId)) {
+            throw new org.springframework.security.access.AccessDeniedException("Không có quyền heartbeat session này");
+        }
+        sessionRepository.updateLastHeartbeatAt(sessionId, LocalDateTime.now(ZoneOffset.UTC));
+    }
+
+    @Override
+    @Transactional
+    public void cleanUpStaleSessions() {
+        LocalDateTime staleThreshold = LocalDateTime.now(ZoneOffset.UTC)
+                .minusMinutes(AppConstant.SESSION_STALE_MINUTES);
+        LocalDateTime maxDurationThreshold = LocalDateTime.now(ZoneOffset.UTC)
+                .minusHours(AppConstant.SESSION_MAX_DURATION_HOURS);
+
+        List<TSessionEntity> staleSessions = sessionRepository
+                .findStaleActiveSessions(staleThreshold, maxDurationThreshold);
+
+        for (TSessionEntity session : staleSessions) {
+            try {
+                log.warn("Auto-ending stale session: id={}, user={}, startedAt={}, lastHeartbeat={}",
+                        session.getId(), session.getUserId(),
+                        session.getStartedAt(), session.getLastHeartbeatAt());
+                doEndSession(session, SessionStatusEnum.FORCE_ENDED);
+            } catch (Exception e) {
+                log.error("Failed to auto-end stale session {}: {}", session.getId(), e.getMessage());
+            }
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<ActiveSessionWithUserResponse> findAllActiveWithUserInfo() {
         List<TSessionEntity> sessions = sessionRepository.findAllActiveSessions();
@@ -228,6 +264,9 @@ public class SessionServiceImpl implements SessionService {
                     .phoneNumber(user != null ? user.getPhoneNumber() : "")
                     .fullName(user != null ? user.getFullName() : null)
                     .startedAt(s.getStartedAt())
+                    .pricePerHourSnapshot(s.getPricePerHourSnapshot())
+                    .balance(user != null ? user.getBalance() : java.math.BigDecimal.ZERO)
+                    .isFree(s.getIsFree())
                     .build();
         }).toList();
     }

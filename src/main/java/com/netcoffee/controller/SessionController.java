@@ -48,11 +48,24 @@ public class SessionController {
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        SessionResponse existing = sessionService.findById(id);
-        if (!existing.getUserId().equals(userId)) {
-            throw new AccessDeniedException("Không có quyền kết thúc phiên này");
+        boolean isAdmin = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        if (!isAdmin) {
+            SessionResponse existing = sessionService.findById(id);
+            if (!existing.getUserId().equals(userId)) {
+                throw new AccessDeniedException("Không có quyền kết thúc phiên này");
+            }
         }
         return ResponseEntity.ok(ApiResponse.ok("Session bị kết thúc", sessionService.forceEndSession(id)));
+    }
+
+    @PostMapping("/{id}/heartbeat")
+    public ResponseEntity<ApiResponse<Void>> heartbeat(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        sessionService.heartbeat(id, userId);
+        return ResponseEntity.ok(ApiResponse.ok("OK", null));
     }
 
     @GetMapping("/all-active")

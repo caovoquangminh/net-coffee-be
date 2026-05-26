@@ -1,6 +1,7 @@
 package com.netcoffee.controller;
 
 import com.netcoffee.constant.AppConstant;
+import com.netcoffee.dto.request.AdminDeductRequest;
 import com.netcoffee.dto.request.CreateCustomerRequest;
 import com.netcoffee.dto.request.ResetPasswordRequest;
 import com.netcoffee.dto.request.UpdateUserRequest;
@@ -9,6 +10,9 @@ import com.netcoffee.entity.TMachineEntity;
 import com.netcoffee.entity.TSessionEntity;
 import com.netcoffee.entity.TTransactionEntity;
 import com.netcoffee.entity.TUserEntity;
+import com.netcoffee.enumtype.PaymentMethodEnum;
+import com.netcoffee.enumtype.TransactionTypeEnum;
+import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.enumtype.UserRoleEnum;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.MachineRepository;
@@ -36,7 +40,6 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     private final UserRepository userRepository;
@@ -52,16 +55,32 @@ public class AdminController {
     // -------------------------------------------------------------------------
 
     @GetMapping("/users")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<List<UserResponse>>> searchUsers(
-            @RequestParam(defaultValue = "") String phone) {
-        List<TUserEntity> users = phone.isBlank()
-                ? userRepository.findAllExcludingRole(UserRoleEnum.ADMIN)
-                : userRepository.findByPhoneContainingExcludingRole(phone, UserRoleEnum.ADMIN);
+            @RequestParam(defaultValue = "") String phone,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal
+            org.springframework.security.core.userdetails.UserDetails principal) {
+
+        boolean isAdmin = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        List<TUserEntity> users;
+        if (isAdmin) {
+            users = phone.isBlank()
+                    ? userRepository.findAllExcludingRole(UserRoleEnum.ADMIN)
+                    : userRepository.findByPhoneContainingExcludingRole(phone, UserRoleEnum.ADMIN);
+        } else {
+            users = phone.isBlank()
+                    ? userRepository.findByRoleOrderByCreatedAtDesc(UserRoleEnum.CUSTOMER)
+                    : userRepository.findByRoleAndPhoneNumberContainingOrderByCreatedAtDesc(UserRoleEnum.CUSTOMER, phone);
+        }
+
         List<UserResponse> result = users.stream().map(userMapper::toResponse).toList();
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
 
     @PostMapping("/users")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> createCustomer(
             @Valid @RequestBody CreateCustomerRequest request) {
         return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
@@ -70,11 +89,13 @@ public class AdminController {
     }
 
     @GetMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(userService.findById(id)));
     }
 
     @PutMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request) {
@@ -82,7 +103,50 @@ public class AdminController {
                 userManagementService.adminUpdateUser(id, request)));
     }
 
+    /**
+     * Admin trừ tiền thủ công — chỉ dùng khi nạp nhầm.
+     * Ghi transaction DEDUCT với lý do và performedByUserId để audit.
+     */
+    @PostMapping("/users/{id}/deduct")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<ApiResponse<UserResponse>> deductBalance(
+            @PathVariable Long id,
+            @Valid @RequestBody AdminDeductRequest request,
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails userDetails) {
+
+        Long adminId = Long.parseLong(userDetails.getUsername());
+        TUserEntity user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+
+        if (request.getAmount().compareTo(user.getBalance()) > 0) {
+            throw new IllegalArgumentException(
+                    "Số dư không đủ để trừ. Hiện có: " + user.getBalance().toPlainString() + "đ");
+        }
+
+        BigDecimal balanceBefore = user.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(request.getAmount());
+
+        TTransactionEntity tx = TTransactionEntity.builder()
+                .userId(id)
+                .type(TransactionTypeEnum.DEDUCT)
+                .amount(request.getAmount())
+                .balanceBefore(balanceBefore)
+                .balanceAfter(balanceAfter)
+                .description("Admin trừ tiền: " + request.getReason())
+                .paymentMethod(PaymentMethodEnum.ADMIN)
+                .performedByUserId(adminId)
+                .build();
+        transactionRepository.save(tx);
+        userService.deduct(id, request.getAmount());
+
+        UserResponse updated = userMapper.toResponse(
+                userRepository.findById(id).orElseThrow());
+        return ResponseEntity.ok(ApiResponse.ok("Trừ tiền thành công", updated));
+    }
+
     @PutMapping("/users/{id}/reset-password")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @PathVariable Long id,
             @Valid @RequestBody ResetPasswordRequest request) {
@@ -95,6 +159,7 @@ public class AdminController {
     // -------------------------------------------------------------------------
 
     @GetMapping("/transactions")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<Page<AdminTransactionResponse>>> getTransactions(
             @RequestParam(defaultValue = "0") int page,
@@ -146,6 +211,7 @@ public class AdminController {
     // -------------------------------------------------------------------------
 
     @GetMapping("/sessions")
+    @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<Page<SessionHistoryResponse>>> getSessionHistory(
             @RequestParam(defaultValue = "0") int page,
