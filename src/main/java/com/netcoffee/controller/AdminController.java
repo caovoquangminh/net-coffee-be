@@ -57,10 +57,24 @@ public class AdminController {
     @GetMapping("/users")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<List<UserResponse>>> searchUsers(
-            @RequestParam(defaultValue = "") String phone) {
-        List<TUserEntity> users = phone.isBlank()
-                ? userRepository.findAllExcludingRole(UserRoleEnum.ADMIN)
-                : userRepository.findByPhoneContainingExcludingRole(phone, UserRoleEnum.ADMIN);
+            @RequestParam(defaultValue = "") String phone,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal
+            org.springframework.security.core.userdetails.UserDetails principal) {
+
+        boolean isAdmin = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        List<TUserEntity> users;
+        if (isAdmin) {
+            users = phone.isBlank()
+                    ? userRepository.findAllExcludingRole(UserRoleEnum.ADMIN)
+                    : userRepository.findByPhoneContainingExcludingRole(phone, UserRoleEnum.ADMIN);
+        } else {
+            users = phone.isBlank()
+                    ? userRepository.findByRoleOrderByCreatedAtDesc(UserRoleEnum.CUSTOMER)
+                    : userRepository.findByRoleAndPhoneNumberContainingOrderByCreatedAtDesc(UserRoleEnum.CUSTOMER, phone);
+        }
+
         List<UserResponse> result = users.stream().map(userMapper::toResponse).toList();
         return ResponseEntity.ok(ApiResponse.ok(result));
     }
