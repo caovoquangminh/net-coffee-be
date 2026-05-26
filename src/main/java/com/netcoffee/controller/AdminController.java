@@ -32,6 +32,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
@@ -58,7 +61,7 @@ public class AdminController {
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<List<UserResponse>>> searchUsers(
             @RequestParam(defaultValue = "") String phone,
-            @org.springframework.security.core.annotation.AuthenticationPrincipal
+            @AuthenticationPrincipal
             org.springframework.security.core.userdetails.UserDetails principal) {
 
         boolean isAdmin = principal.getAuthorities().stream()
