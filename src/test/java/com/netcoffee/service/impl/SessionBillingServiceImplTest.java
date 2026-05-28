@@ -36,13 +36,14 @@ class SessionBillingServiceImplTest {
     @Mock UserService userService;
     @Mock TransactionService transactionService;
     @Mock SessionService sessionService;
+    @Mock org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     SessionBillingServiceImpl billingService;
 
     @BeforeEach
     void setUp() {
         billingService = new SessionBillingServiceImpl(
-                sessionRepository, userService, transactionService, new DefaultBillingStrategy());
+                sessionRepository, userService, transactionService, new DefaultBillingStrategy(), messagingTemplate);
         billingService.setSessionService(sessionService);
         billingService.self = billingService; // bypass proxy for unit tests
     }
