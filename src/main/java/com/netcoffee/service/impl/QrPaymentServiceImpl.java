@@ -3,6 +3,7 @@ package com.netcoffee.service.impl;
 import com.netcoffee.dto.request.TopUpRequest;
 import com.netcoffee.dto.request.WebhookPaymentRequest;
 import com.netcoffee.dto.response.QrPaymentResponse;
+import com.netcoffee.dto.response.UserResponse;
 import com.netcoffee.entity.TQrPaymentEntity;
 import com.netcoffee.entity.TUserEntity;
 import com.netcoffee.enumtype.PaymentMethodEnum;
@@ -17,14 +18,17 @@ import com.netcoffee.utils.ReferenceCodeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -35,6 +39,7 @@ public class QrPaymentServiceImpl implements QrPaymentService {
     private final UserRepository userRepository;
     private final UserService userService;
     private final TransactionService transactionService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Value("${app.vietqr.bank-bin}")
     private String bankBin;
@@ -157,17 +162,22 @@ public class QrPaymentServiceImpl implements QrPaymentService {
         qrPayment.setMatchedAt(LocalDateTime.now(ZoneOffset.UTC));
         qrPaymentRepository.save(qrPayment);
 
-        userService.topUp(qrPayment.getUserId(), request.getTransferAmount());
+        Long userId = qrPayment.getUserId();
+        BigDecimal amount = request.getTransferAmount();
+
+        userService.topUp(userId, amount);
 
         transactionService.recordTopUp(
-                qrPayment.getUserId(),
-                request.getTransferAmount(),
-                PaymentMethodEnum.QR_BANK,
-                request.getTransactionId()
+                userId, amount, PaymentMethodEnum.QR_BANK, request.getTransactionId()
         );
 
-        log.info("QR payment matched: user={}, amount={}, ref={}",
-                qrPayment.getUserId(), request.getTransferAmount(), referenceCode);
+        UserResponse updated = userService.findById(userId);
+        messagingTemplate.convertAndSend(
+                "/topic/balance/" + userId,
+                Map.of("balance", updated.getBalance())
+        );
+
+        log.info("QR payment matched: user={}, amount={}, ref={}", userId, amount, referenceCode);
     }
 
     @Override

@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -35,6 +37,7 @@ public class SessionBillingServiceImpl implements SessionBillingService {
     private final UserService userService;
     private final TransactionService transactionService;
     private final BillingStrategy billingStrategy;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private SessionService sessionService;
 
@@ -77,6 +80,9 @@ public class SessionBillingServiceImpl implements SessionBillingService {
                     .plusMinutes(AppConstant.SESSION_MINIMUM_MINUTES);
             sessionRepository.updateLastBilledAt(sessionId, billedUpTo);
         });
+
+        BigDecimal balanceAfterMinFee = user.getBalance().subtract(AppConstant.SESSION_MINIMUM_CHARGE);
+        messagingTemplate.convertAndSend("/topic/balance/" + userId, Map.of("balance", balanceAfterMinFee));
 
         log.info("Charged minimum fee: user={}, amount={}, session={}",
                 userId, AppConstant.SESSION_MINIMUM_CHARGE, sessionId);
@@ -159,6 +165,9 @@ public class SessionBillingServiceImpl implements SessionBillingService {
                 "Phí sử dụng máy (" + unbilledSeconds + "s)"
         );
 
+        BigDecimal newBalance = user.getBalance().subtract(deductAmount);
+        messagingTemplate.convertAndSend("/topic/balance/" + session.getUserId(), Map.of("balance", newBalance));
+
         log.debug("Billing tick: session={}, unbilled={}s, deduct={}",
                 session.getId(), unbilledSeconds, deductAmount);
 
@@ -208,6 +217,9 @@ public class SessionBillingServiceImpl implements SessionBillingService {
                 sessionId,
                 "Kết toán cuối phiên (" + unbilledSeconds + "s)"
         );
+
+        BigDecimal newBalance = user.getBalance().subtract(deductAmount);
+        messagingTemplate.convertAndSend("/topic/balance/" + userId, Map.of("balance", newBalance));
 
         log.info("Final billing: session={}, unbilled={}s, deduct={}",
                 sessionId, unbilledSeconds, deductAmount);
