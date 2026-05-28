@@ -1,5 +1,6 @@
 package com.netcoffee.controller;
 
+import com.netcoffee.constant.ApiPaths;
 import com.netcoffee.constant.AppConstant;
 import com.netcoffee.dto.response.ApiResponse;
 import com.netcoffee.dto.response.TransactionResponse;
@@ -14,7 +15,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/transactions")
+@RequestMapping(ApiPaths.TRANSACTIONS)
 @RequiredArgsConstructor
 public class TransactionController {
 

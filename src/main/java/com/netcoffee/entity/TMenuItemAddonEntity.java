@@ -1,18 +1,22 @@
 package com.netcoffee.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import lombok.*;
 
-import java.math.BigDecimal;
-
 @Entity
-@Table(name = "menu_item_addons", indexes = {
-        @Index(name = "idx_addons_menu_item_id", columnList = "menu_item_id")
-})
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Table(
+        name = "menu_item_addons",
+        indexes = {@Index(name = "idx_addons_menu_item_id", columnList = "menu_item_id")})
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class TMenuItemAddonEntity {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "menu_item_id", nullable = false)

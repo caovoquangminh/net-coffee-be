@@ -1,20 +1,20 @@
 package com.netcoffee.controller;
 
+import com.netcoffee.constant.ApiPaths;
 import com.netcoffee.dto.request.CreateSupplierRequest;
 import com.netcoffee.dto.response.ApiResponse;
 import com.netcoffee.dto.response.SupplierResponse;
 import com.netcoffee.service.SupplierService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/api/suppliers")
+@RequestMapping(ApiPaths.SUPPLIERS)
 @RequiredArgsConstructor
 public class SupplierController {
 
@@ -34,17 +34,20 @@ public class SupplierController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<SupplierResponse>> create(@Valid @RequestBody CreateSupplierRequest request) {
+    public ResponseEntity<ApiResponse<SupplierResponse>> create(
+            @Valid @RequestBody CreateSupplierRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Thêm nhà cung cấp thành công", supplierService.create(request)));
+                .body(
+                        ApiResponse.ok(
+                                "Thêm nhà cung cấp thành công", supplierService.create(request)));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<SupplierResponse>> update(
-            @PathVariable Long id,
-            @Valid @RequestBody CreateSupplierRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("Cập nhật thành công", supplierService.update(id, request)));
+            @PathVariable Long id, @Valid @RequestBody CreateSupplierRequest request) {
+        return ResponseEntity.ok(
+                ApiResponse.ok("Cập nhật thành công", supplierService.update(id, request)));
     }
 
     @DeleteMapping("/{id}")

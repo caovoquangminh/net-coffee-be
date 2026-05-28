@@ -23,4 +23,7 @@ public interface UserManagementService {
 
     /** Admin tạo tài khoản hội viên mới (role = CUSTOMER). */
     UserResponse createCustomer(CreateCustomerRequest request);
+
+    /** Tìm tài khoản hội viên (CUSTOMER) theo số điện thoại (tối thiểu 3 ký tự). */
+    java.util.List<UserResponse> searchCustomers(String phone);
 }

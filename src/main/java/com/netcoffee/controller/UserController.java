@@ -1,5 +1,6 @@
 package com.netcoffee.controller;
 
+import com.netcoffee.constant.ApiPaths;
 import com.netcoffee.dto.request.ChangePasswordRequest;
 import com.netcoffee.dto.request.UpdateProfileRequest;
 import com.netcoffee.dto.response.ApiResponse;
@@ -14,7 +15,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping(ApiPaths.USERS)
 @RequiredArgsConstructor
 public class UserController {
 
@@ -22,7 +23,8 @@ public class UserController {
     private final UserManagementService userManagementService;
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserResponse>> getMe(@AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<ApiResponse<UserResponse>> getMe(
+            @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
         return ResponseEntity.ok(ApiResponse.ok(userService.findById(userId)));
     }
@@ -32,8 +34,10 @@ public class UserController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody UpdateProfileRequest request) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(ApiResponse.ok("Cập nhật thành công",
-                userManagementService.updateMyProfile(userId, request)));
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        "Cập nhật thành công",
+                        userManagementService.updateMyProfile(userId, request)));
     }
 
     @PutMapping("/me/password")

@@ -1,17 +1,16 @@
 package com.netcoffee.dto.request;
 
+import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.math.BigDecimal;
-
 /**
- * Request từ webhook ngân hàng (SePay / Casso / etc.) Các field có thể thay đổi
- * tuỳ nhà cung cấp webhook
+ * Request từ webhook ngân hàng (SePay / Casso / etc.) Các field có thể thay đổi tuỳ nhà cung cấp
+ * webhook
  */
-@Getter @Setter
-public class WebhookPaymentRequest
-{
+@Getter
+@Setter
+public class WebhookPaymentRequest {
 
     private String transferContent; // Nội dung CK — chứa referenceCode
     private BigDecimal transferAmount;

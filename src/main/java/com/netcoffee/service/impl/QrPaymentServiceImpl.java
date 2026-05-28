@@ -1,5 +1,6 @@
 package com.netcoffee.service.impl;
 
+import com.netcoffee.config.VietQrProperties;
 import com.netcoffee.dto.request.TopUpRequest;
 import com.netcoffee.dto.request.WebhookPaymentRequest;
 import com.netcoffee.dto.response.QrPaymentResponse;
@@ -15,20 +16,18 @@ import com.netcoffee.service.QrPaymentService;
 import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
 import com.netcoffee.utils.ReferenceCodeUtil;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -40,18 +39,7 @@ public class QrPaymentServiceImpl implements QrPaymentService {
     private final UserService userService;
     private final TransactionService transactionService;
     private final SimpMessagingTemplate messagingTemplate;
-
-    @Value("${app.vietqr.bank-bin}")
-    private String bankBin;
-
-    @Value("${app.vietqr.bank-name}")
-    private String bankName;
-
-    @Value("${app.vietqr.account-number}")
-    private String accountNumber;
-
-    @Value("${app.vietqr.account-name}")
-    private String accountName;
+    private final VietQrProperties vietQr;
 
     @Override
     @Transactional
@@ -64,8 +52,13 @@ public class QrPaymentServiceImpl implements QrPaymentService {
     @Transactional
     public QrPaymentResponse generateQrByPhone(String phoneNumber, TopUpRequest request) {
         // Validate SĐT tồn tại + không bị khóa
-        TUserEntity user = userRepository.findByPhoneNumber(phoneNumber)
-                .orElseThrow(() -> new ResourceNotFoundException("Số điện thoại không tồn tại trong hệ thống"));
+        TUserEntity user =
+                userRepository
+                        .findByPhoneNumber(phoneNumber)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Số điện thoại không tồn tại trong hệ thống"));
 
         if (!user.getIsActive()) {
             throw new IllegalStateException("Tài khoản đã bị khóa, vui lòng liên hệ nhân viên");
@@ -74,28 +67,26 @@ public class QrPaymentServiceImpl implements QrPaymentService {
         return buildQrPayment(user.getId(), request);
     }
 
-    /**
-     * Logic tạo QR dùng chung cho cả 2 method generate
-     */
+    /** Logic tạo QR dùng chung cho cả 2 method generate */
     private QrPaymentResponse buildQrPayment(Long userId, TopUpRequest request) {
         String referenceCode = ReferenceCodeUtil.generate();
 
-        TQrPaymentEntity qrPayment = TQrPaymentEntity.builder()
-                .userId(userId)
-                .machineId(request.getMachineId())
-                .amountExpected(request.getAmount())
-                .referenceCode(referenceCode)
-                .status(QrPaymentStatusEnum.PENDING)
-                .build();
+        TQrPaymentEntity qrPayment =
+                TQrPaymentEntity.builder()
+                        .userId(userId)
+                        .machineId(request.getMachineId())
+                        .amountExpected(request.getAmount())
+                        .referenceCode(referenceCode)
+                        .status(QrPaymentStatusEnum.PENDING)
+                        .build();
 
         qrPayment = qrPaymentRepository.save(qrPayment);
 
-        String qrImageUrl = buildVietQrImageUrl(
-                request.getAmount().toPlainString(),
-                referenceCode
-        );
+        String qrImageUrl = buildVietQrImageUrl(request.getAmount().toPlainString(), referenceCode);
 
-        String qrContent = String.format("%s | %s | %s", bankName, accountNumber, referenceCode);
+        String qrContent =
+                String.format(
+                        "%s | %s | %s", vietQr.bankName(), vietQr.accountNumber(), referenceCode);
 
         return QrPaymentResponse.builder()
                 .id(qrPayment.getId())
@@ -109,13 +100,16 @@ public class QrPaymentServiceImpl implements QrPaymentService {
     }
 
     private String buildVietQrImageUrl(String amount, String referenceCode) {
-        String encodedAccountName = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
+        String encodedAccountName = URLEncoder.encode(vietQr.accountName(), StandardCharsets.UTF_8);
         String encodedReference = URLEncoder.encode(referenceCode, StandardCharsets.UTF_8);
 
         return String.format(
                 "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%s&addInfo=%s&accountName=%s",
-                bankBin, accountNumber, amount, encodedReference, encodedAccountName
-        );
+                vietQr.bankBin(),
+                vietQr.accountNumber(),
+                amount,
+                encodedReference,
+                encodedAccountName);
     }
 
     @Override
@@ -136,9 +130,8 @@ public class QrPaymentServiceImpl implements QrPaymentService {
         }
 
         // Pessimistic lock prevents duplicate processing when two webhooks arrive simultaneously
-        TQrPaymentEntity qrPayment = qrPaymentRepository
-                .findByReferenceCodeForUpdate(referenceCode)
-                .orElse(null);
+        TQrPaymentEntity qrPayment =
+                qrPaymentRepository.findByReferenceCodeForUpdate(referenceCode).orElse(null);
 
         if (qrPayment == null) {
             log.warn("No QR payment found for reference code: {}", referenceCode);
@@ -146,7 +139,10 @@ public class QrPaymentServiceImpl implements QrPaymentService {
         }
 
         if (qrPayment.getStatus() != QrPaymentStatusEnum.PENDING) {
-            log.warn("QR payment {} already processed with status {}", referenceCode, qrPayment.getStatus());
+            log.warn(
+                    "QR payment {} already processed with status {}",
+                    referenceCode,
+                    qrPayment.getStatus());
             return;
         }
 
@@ -168,14 +164,11 @@ public class QrPaymentServiceImpl implements QrPaymentService {
         userService.topUp(userId, amount);
 
         transactionService.recordTopUp(
-                userId, amount, PaymentMethodEnum.QR_BANK, request.getTransactionId()
-        );
+                userId, amount, PaymentMethodEnum.QR_BANK, request.getTransactionId());
 
         UserResponse updated = userService.findById(userId);
         messagingTemplate.convertAndSend(
-                "/topic/balance/" + userId,
-                Map.of("balance", updated.getBalance())
-        );
+                "/topic/balance/" + userId, Map.of("balance", updated.getBalance()));
 
         log.info("QR payment matched: user={}, amount={}, ref={}", userId, amount, referenceCode);
     }

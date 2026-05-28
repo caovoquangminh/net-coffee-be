@@ -6,9 +6,9 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
-@Getter @Setter
-public class FeedbackRequest
-{
+@Getter
+@Setter
+public class FeedbackRequest {
 
     private Long machineId;
     private Long sessionId;
@@ -16,6 +16,7 @@ public class FeedbackRequest
     @Size(max = 1000)
     private String content;
 
-    @Min(1) @Max(5)
+    @Min(1)
+    @Max(5)
     private Integer rating;
 }

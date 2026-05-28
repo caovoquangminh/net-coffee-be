@@ -6,11 +6,10 @@ import com.netcoffee.entity.TSupplierEntity;
 import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.repository.SupplierRepository;
 import com.netcoffee.service.SupplierService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -21,12 +20,13 @@ public class SupplierServiceImpl implements SupplierService {
     @Override
     @Transactional
     public SupplierResponse create(CreateSupplierRequest request) {
-        TSupplierEntity entity = TSupplierEntity.builder()
-                .name(request.getName())
-                .phone(request.getPhone())
-                .address(request.getAddress())
-                .note(request.getNote())
-                .build();
+        TSupplierEntity entity =
+                TSupplierEntity.builder()
+                        .name(request.getName())
+                        .phone(request.getPhone())
+                        .address(request.getAddress())
+                        .note(request.getNote())
+                        .build();
         return toResponse(supplierRepository.save(entity));
     }
 
@@ -52,9 +52,7 @@ public class SupplierServiceImpl implements SupplierService {
     @Override
     @Transactional(readOnly = true)
     public List<SupplierResponse> findAll() {
-        return supplierRepository.findAll().stream()
-                .map(this::toResponse)
-                .toList();
+        return supplierRepository.findAll().stream().map(this::toResponse).toList();
     }
 
     @Override
@@ -64,8 +62,10 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     private TSupplierEntity findEntity(Long id) {
-        return supplierRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Nhà cung cấp không tồn tại: " + id));
+        return supplierRepository
+                .findById(id)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Nhà cung cấp không tồn tại: " + id));
     }
 
     private SupplierResponse toResponse(TSupplierEntity e) {

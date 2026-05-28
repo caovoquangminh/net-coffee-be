@@ -1,11 +1,10 @@
 package com.netcoffee.service;
 
 import com.netcoffee.dto.ChatPresenceDto;
-import org.springframework.stereotype.Service;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.stereotype.Service;
 
 @Service
 public class ChatPresenceService {

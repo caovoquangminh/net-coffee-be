@@ -5,8 +5,7 @@ import com.netcoffee.dto.request.RegisterRequest;
 import com.netcoffee.dto.response.AuthResponse;
 import com.netcoffee.dto.response.UserResponse;
 
-public interface AuthService
-{
+public interface AuthService {
 
     AuthResponse login(LoginRequest request);
 

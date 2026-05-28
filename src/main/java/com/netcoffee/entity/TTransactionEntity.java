@@ -3,23 +3,21 @@ package com.netcoffee.entity;
 import com.netcoffee.enumtype.PaymentMethodEnum;
 import com.netcoffee.enumtype.TransactionTypeEnum;
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import lombok.*;
 
 @Entity
 @Table(
-    name = "transactions",
-    indexes = {
-        @Index(name = "idx_transactions_user_id", columnList = "user_id"),
-        @Index(name = "idx_transactions_session_id", columnList = "session_id"),
-        @Index(name = "idx_transactions_type", columnList = "type"),
-        @Index(name = "idx_transactions_created_at", columnList = "created_at"),
-        @Index(name = "idx_transactions_reference_code", columnList = "reference_code")
-    }
-)
+        name = "transactions",
+        indexes = {
+            @Index(name = "idx_transactions_user_id", columnList = "user_id"),
+            @Index(name = "idx_transactions_session_id", columnList = "session_id"),
+            @Index(name = "idx_transactions_type", columnList = "type"),
+            @Index(name = "idx_transactions_created_at", columnList = "created_at"),
+            @Index(name = "idx_transactions_reference_code", columnList = "reference_code")
+        })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -42,8 +40,8 @@ public class TTransactionEntity {
     private BigDecimal amount;
 
     /**
-     * Audit trail: lưu balance trước và sau để dễ debug, không cần tính ngược.
-     * Không bao giờ derive từ các transaction khác.
+     * Audit trail: lưu balance trước và sau để dễ debug, không cần tính ngược. Không bao giờ derive
+     * từ các transaction khác.
      */
     @Column(name = "balance_before", nullable = false, precision = 15, scale = 2)
     private BigDecimal balanceBefore;
@@ -59,8 +57,8 @@ public class TTransactionEntity {
     private PaymentMethodEnum paymentMethod;
 
     /**
-     * Mã tham chiếu từ ngân hàng, dùng để match webhook.
-     * Unique constraint để tránh duplicate processing.
+     * Mã tham chiếu từ ngân hàng, dùng để match webhook. Unique constraint để tránh duplicate
+     * processing.
      */
     @Column(name = "reference_code", length = 100, unique = true)
     private String referenceCode;

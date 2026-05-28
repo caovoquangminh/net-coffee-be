@@ -7,11 +7,10 @@ import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.UserRepository;
 import com.netcoffee.service.UserService;
+import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -29,16 +28,21 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public UserResponse findByPhoneNumber(String phoneNumber) {
-        TUserEntity user = userRepository.findByPhoneNumber(phoneNumber)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+        TUserEntity user =
+                userRepository
+                        .findByPhoneNumber(phoneNumber)
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Người dùng không tồn tại"));
         return userMapper.toResponse(user);
     }
 
     @Override
     @Transactional(readOnly = true)
     public TUserEntity getEntityById(Long id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại: " + id));
+        return userRepository
+                .findById(id)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Người dùng không tồn tại: " + id));
     }
 
     @Override

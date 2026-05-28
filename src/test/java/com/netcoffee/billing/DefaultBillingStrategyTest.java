@@ -1,11 +1,10 @@
 package com.netcoffee.billing;
 
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 class DefaultBillingStrategyTest {
 
@@ -14,22 +13,19 @@ class DefaultBillingStrategyTest {
     @Test
     @DisplayName("60 giây với giá 8000/giờ → 133.33đ")
     void sixtySeconds_returnsCorrectAmount() {
-        assertThat(strategy.calcCharge(new BigDecimal("8000"), 60))
-                .isEqualByComparingTo("133.33");
+        assertThat(strategy.calcCharge(new BigDecimal("8000"), 60)).isEqualByComparingTo("133.33");
     }
 
     @Test
     @DisplayName("90 giây (1.5 phút) với giá 8000/giờ → 200.00đ")
     void ninetySeconds_returnsCorrectAmount() {
-        assertThat(strategy.calcCharge(new BigDecimal("8000"), 90))
-                .isEqualByComparingTo("200.00");
+        assertThat(strategy.calcCharge(new BigDecimal("8000"), 90)).isEqualByComparingTo("200.00");
     }
 
     @Test
     @DisplayName("1 giây với giá 8000/giờ → 2.22đ")
     void oneSecond_returnsCorrectAmount() {
-        assertThat(strategy.calcCharge(new BigDecimal("8000"), 1))
-                .isEqualByComparingTo("2.22");
+        assertThat(strategy.calcCharge(new BigDecimal("8000"), 1)).isEqualByComparingTo("2.22");
     }
 
     @Test

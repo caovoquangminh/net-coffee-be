@@ -9,14 +9,10 @@ public class AuthResponse {
 
     private String token;
 
-    @Builder.Default
-    private String tokenType = "Bearer";
+    @Builder.Default private String tokenType = "Bearer";
 
     private UserResponse user;
 
-    /**
-     * Session được tạo tự động khi login.
-     * Null nếu máy bận hoặc user không đủ tiền.
-     */
+    /** Session được tạo tự động khi login. Null nếu máy bận hoặc user không đủ tiền. */
     private SessionResponse session;
 }

@@ -1,18 +1,18 @@
 package com.netcoffee.controller;
 
+import com.netcoffee.constant.ApiPaths;
 import com.netcoffee.dto.ChatPresenceDto;
 import com.netcoffee.dto.response.ApiResponse;
 import com.netcoffee.service.ChatPresenceService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/api/chat")
+@RequestMapping(ApiPaths.CHAT)
 @RequiredArgsConstructor
 public class ChatPresenceController {
 

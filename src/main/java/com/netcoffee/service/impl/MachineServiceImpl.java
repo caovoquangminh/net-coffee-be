@@ -7,11 +7,10 @@ import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.mapper.MachineMapper;
 import com.netcoffee.repository.MachineRepository;
 import com.netcoffee.service.MachineService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,15 +22,15 @@ public class MachineServiceImpl implements MachineService {
     @Override
     @Transactional(readOnly = true)
     public List<MachineResponse> findAll() {
-        return machineRepository.findAll()
-                .stream().map(machineMapper::toResponse).toList();
+        return machineRepository.findAll().stream().map(machineMapper::toResponse).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<MachineResponse> findByStatus(MachineStatusEnum status) {
-        return machineRepository.findByStatus(status)
-                .stream().map(machineMapper::toResponse).toList();
+        return machineRepository.findByStatus(status).stream()
+                .map(machineMapper::toResponse)
+                .toList();
     }
 
     @Override
@@ -43,7 +42,8 @@ public class MachineServiceImpl implements MachineService {
     @Override
     @Transactional(readOnly = true)
     public TMachineEntity getEntityById(Long id) {
-        return machineRepository.findById(id)
+        return machineRepository
+                .findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Máy không tồn tại: " + id));
     }
 

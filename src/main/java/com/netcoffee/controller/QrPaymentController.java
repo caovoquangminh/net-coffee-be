@@ -1,5 +1,6 @@
 package com.netcoffee.controller;
 
+import com.netcoffee.constant.ApiPaths;
 import com.netcoffee.dto.request.TopUpRequest;
 import com.netcoffee.dto.response.ApiResponse;
 import com.netcoffee.dto.response.QrPaymentResponse;
@@ -15,15 +16,13 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/qr-payments")
+@RequestMapping(ApiPaths.QR_PAYMENTS)
 @RequiredArgsConstructor
 public class QrPaymentController {
 
     private final QrPaymentService qrPaymentService;
 
-    /**
-     * Tạo QR khi đã đăng nhập
-     */
+    /** Tạo QR khi đã đăng nhập */
     @PostMapping("/generate")
     public ResponseEntity<ApiResponse<QrPaymentResponse>> generate(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -34,20 +33,16 @@ public class QrPaymentController {
     }
 
     /**
-     * Tạo QR bằng SĐT — không cần đăng nhập.
-     * Dùng cho màn hình login khi user muốn nạp tiền trước.
+     * Tạo QR bằng SĐT — không cần đăng nhập. Dùng cho màn hình login khi user muốn nạp tiền trước.
      */
     @PostMapping("/generate-by-phone")
     public ResponseEntity<ApiResponse<QrPaymentResponse>> generateByPhone(
-            @RequestParam @NotBlank String phoneNumber,
-            @Valid @RequestBody TopUpRequest request) {
+            @RequestParam @NotBlank String phoneNumber, @Valid @RequestBody TopUpRequest request) {
         QrPaymentResponse response = qrPaymentService.generateQrByPhone(phoneNumber, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(response));
     }
 
-    /**
-     * Check trạng thái QR — FE polling mỗi 3s
-     */
+    /** Check trạng thái QR — FE polling mỗi 3s */
     @GetMapping("/{referenceCode}/status")
     public ResponseEntity<ApiResponse<QrPaymentStatusEnum>> getStatus(
             @PathVariable String referenceCode) {

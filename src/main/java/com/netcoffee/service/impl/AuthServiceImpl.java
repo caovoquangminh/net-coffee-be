@@ -6,13 +6,14 @@ import com.netcoffee.dto.response.AuthResponse;
 import com.netcoffee.dto.response.SessionResponse;
 import com.netcoffee.dto.response.UserResponse;
 import com.netcoffee.entity.TUserEntity;
+import com.netcoffee.enumtype.UserRoleEnum;
 import com.netcoffee.exception.InsufficientBalanceException;
 import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.UserRepository;
 import com.netcoffee.security.JwtTokenProvider;
 import com.netcoffee.service.AuthService;
-import com.netcoffee.enumtype.UserRoleEnum;
 import com.netcoffee.service.SessionService;
+import com.netcoffee.validator.AuthRequestValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -36,17 +37,19 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public UserResponse register(RegisterRequest request) {
+        AuthRequestValidator.validateRegister(request.getPhoneNumber(), request.getPassword());
         if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
             throw new IllegalArgumentException("Số điện thoại đã được đăng ký");
         }
 
-        TUserEntity user = TUserEntity.builder()
-                .phoneNumber(request.getPhoneNumber())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName())
-                .isActive(true)
-                .role(UserRoleEnum.CUSTOMER)
-                .build();
+        TUserEntity user =
+                TUserEntity.builder()
+                        .phoneNumber(request.getPhoneNumber())
+                        .passwordHash(passwordEncoder.encode(request.getPassword()))
+                        .fullName(request.getFullName())
+                        .isActive(true)
+                        .role(UserRoleEnum.CUSTOMER)
+                        .build();
 
         return userMapper.toResponse(userRepository.save(user));
     }
@@ -54,9 +57,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        TUserEntity user = userRepository
-                .findByPhoneNumber(request.getPhoneNumber())
-                .orElse(null);
+        AuthRequestValidator.validateLogin(request.getPhoneNumber(), request.getPassword());
+        TUserEntity user = userRepository.findByPhoneNumber(request.getPhoneNumber()).orElse(null);
 
         if (user == null) {
             throw new BadCredentialsException(INVALID_CREDENTIALS);
@@ -75,13 +77,19 @@ public class AuthServiceImpl implements AuthService {
         SessionResponse session = null;
         if (request.getMachineId() == null) {
             return AuthResponse.builder()
-                    .token(token).user(userMapper.toResponse(user)).session(null).build();
+                    .token(token)
+                    .user(userMapper.toResponse(user))
+                    .session(null)
+                    .build();
         }
         try {
             session = sessionService.getOrStartSession(user.getId(), request.getMachineId());
             if (session != null) {
-                log.info("Session ready: user={}, machine={}, session={}",
-                        user.getId(), request.getMachineId(), session.getId());
+                log.info(
+                        "Session ready: user={}, machine={}, session={}",
+                        user.getId(),
+                        request.getMachineId(),
+                        session.getId());
             }
         } catch (InsufficientBalanceException e) {
             throw e;
@@ -108,9 +116,11 @@ public class AuthServiceImpl implements AuthService {
             sessionService.endSession(activeSession.getId(), userId);
             log.info("Logout: user={} ended session={}", userId, activeSession.getId());
         } catch (Exception e) {
-            log.warn("Could not end session on logout: user={}, session={}, reason={}",
-                    userId, activeSession.getId(), e.getMessage());
+            log.warn(
+                    "Could not end session on logout: user={}, session={}, reason={}",
+                    userId,
+                    activeSession.getId(),
+                    e.getMessage());
         }
     }
-
 }

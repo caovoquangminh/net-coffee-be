@@ -2,16 +2,25 @@ package com.netcoffee.entity;
 
 import com.netcoffee.enumtype.MachineStatusEnum;
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.*;
 
-import java.time.LocalDateTime;
+@Entity
+@Table(
+        name = "machines",
+        indexes = {
+            @Index(name = "idx_machines_status", columnList = "status"),
+            @Index(name = "idx_machines_machine_code", columnList = "machine_code", unique = true)
+        })
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TMachineEntity {
 
-@Entity @Table(name = "machines", indexes = { @Index(name = "idx_machines_status", columnList = "status"),
-        @Index(name = "idx_machines_machine_code", columnList = "machine_code", unique = true) }) @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class TMachineEntity
-{
-
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "machine_code", nullable = false, unique = true, length = 20)
@@ -23,13 +32,14 @@ public class TMachineEntity
     @Column(name = "room_zone", length = 50)
     private String roomZone;
 
-    @Enumerated(EnumType.STRING) @Column(name = "status", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private MachineStatusEnum status = MachineStatusEnum.AVAILABLE;
 
     /**
-     * Soft reference để tránh circular FK với sessions. Dùng raw ID thay
-     * vì @OneToOne để tránh vấn đề bidirectional cascade.
+     * Soft reference để tránh circular FK với sessions. Dùng raw ID thay vì @OneToOne để tránh vấn
+     * đề bidirectional cascade.
      */
     @Column(name = "current_session_id")
     private Long currentSessionId;
@@ -41,9 +51,8 @@ public class TMachineEntity
     private String macAddress;
 
     /**
-     * JSON string chứa thông tin specs: { "gpu": "...", "ram": "...",
-     * "monitor": "..." } Dùng TEXT thay vì JSONB để đơn giản hóa, có thể
-     * migrate sang JSONB sau
+     * JSON string chứa thông tin specs: { "gpu": "...", "ram": "...", "monitor": "..." } Dùng TEXT
+     * thay vì JSONB để đơn giản hóa, có thể migrate sang JSONB sau
      */
     @Column(name = "specs", columnDefinition = "TEXT")
     private String specs;
@@ -52,8 +61,7 @@ public class TMachineEntity
     private LocalDateTime createdAt;
 
     @PrePersist
-    protected void onCreate()
-    {
+    protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
 }

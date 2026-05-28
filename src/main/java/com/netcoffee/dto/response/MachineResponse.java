@@ -4,9 +4,9 @@ import com.netcoffee.enumtype.MachineStatusEnum;
 import lombok.Builder;
 import lombok.Getter;
 
-@Getter @Builder
-public class MachineResponse
-{
+@Getter
+@Builder
+public class MachineResponse {
 
     private Long id;
     private String machineCode;

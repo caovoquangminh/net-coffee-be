@@ -1,5 +1,6 @@
 package com.netcoffee.controller;
 
+import com.netcoffee.constant.ApiPaths;
 import com.netcoffee.dto.request.SePayWebhookRequest;
 import com.netcoffee.dto.request.WebhookPaymentRequest;
 import com.netcoffee.dto.response.ApiResponse;
@@ -12,21 +13,22 @@ import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/webhook")
+@RequestMapping(ApiPaths.WEBHOOK)
 @RequiredArgsConstructor
 public class WebhookController {
 
     private final QrPaymentService qrPaymentService;
 
     /**
-     * SePay gọi endpoint này mỗi khi có giao dịch mới.
-     * Chỉ xử lý giao dịch tiền VÀO (transferType = "in").
+     * SePay gọi endpoint này mỗi khi có giao dịch mới. Chỉ xử lý giao dịch tiền VÀO (transferType =
+     * "in").
      */
     @PostMapping("/payment")
     public ResponseEntity<ApiResponse<Void>> receivePayment(
             @RequestBody SePayWebhookRequest request) {
 
-        log.info("SePay webhook: type={}, amount={}, content={}",
+        log.info(
+                "SePay webhook: type={}, amount={}, content={}",
                 request.getTransferType(),
                 request.getTransferAmount(),
                 request.getContent());

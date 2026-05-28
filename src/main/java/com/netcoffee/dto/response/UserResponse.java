@@ -1,15 +1,14 @@
 package com.netcoffee.dto.response;
 
 import com.netcoffee.enumtype.UserRoleEnum;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
-@Getter @Builder
-public class UserResponse
-{
+@Getter
+@Builder
+public class UserResponse {
 
     private Long id;
     private String phoneNumber;

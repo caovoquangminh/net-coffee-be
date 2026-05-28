@@ -2,7 +2,6 @@ package com.netcoffee.service;
 
 import com.netcoffee.dto.response.UserResponse;
 import com.netcoffee.entity.TUserEntity;
-
 import java.math.BigDecimal;
 
 public interface UserService {
@@ -15,8 +14,6 @@ public interface UserService {
 
     void topUp(Long userId, BigDecimal amount);
 
-    /**
-     * Trả về false nếu số dư không đủ
-     */
+    /** Trả về false nếu số dư không đủ */
     boolean deduct(Long userId, BigDecimal amount);
 }

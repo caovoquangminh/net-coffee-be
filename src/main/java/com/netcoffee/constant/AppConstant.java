@@ -16,15 +16,16 @@ public final class AppConstant {
     public static final long JWT_EXPIRY_MS = 86_400_000L; // 24 hours
 
     // Session billing
-    public static final int SESSION_BILLING_INTERVAL_SECONDS = 60;  // tick mỗi 60s
-    public static final BigDecimal SESSION_MINIMUM_CHARGE = new BigDecimal("2000");   // phí mở máy
-    public static final int SESSION_MINIMUM_MINUTES = 15;            // 2k = 15 phút
-    public static final BigDecimal SESSION_PRICE_PER_HOUR = new BigDecimal("8000");   // giá mặc định
+    public static final int SESSION_BILLING_INTERVAL_SECONDS = 60; // tick mỗi 60s
+    public static final BigDecimal SESSION_MINIMUM_CHARGE = new BigDecimal("2000"); // phí mở máy
+    public static final int SESSION_MINIMUM_MINUTES = 15; // 2k = 15 phút
+    public static final BigDecimal SESSION_PRICE_PER_HOUR = new BigDecimal("8000"); // giá mặc định
 
     // Session staleness — client phải gửi heartbeat mỗi 2 phút.
     // Session bị coi là stale (orphaned) nếu:
     //   - Đã có ít nhất 1 heartbeat nhưng heartbeat cuối > STALE_MINUTES trước
-    //   - Hoặc chưa có heartbeat nào và startedAt > MAX_DURATION_HOURS trước (safety net cho phiên cũ)
+    //   - Hoặc chưa có heartbeat nào và startedAt > MAX_DURATION_HOURS trước (safety net cho phiên
+    // cũ)
     public static final int SESSION_STALE_MINUTES = 30;
     public static final int SESSION_MAX_DURATION_HOURS = 12;
 

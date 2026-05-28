@@ -4,13 +4,11 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
-@Getter @Setter
-public class StartSessionRequest
-{
+@Getter
+@Setter
+public class StartSessionRequest {
 
-    @NotNull
-    private Long userId;
+    @NotNull private Long userId;
 
-    @NotNull
-    private Long machineId;
+    @NotNull private Long machineId;
 }

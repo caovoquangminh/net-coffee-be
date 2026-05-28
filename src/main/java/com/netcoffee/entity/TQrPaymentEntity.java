@@ -2,23 +2,32 @@ package com.netcoffee.entity;
 
 import com.netcoffee.enumtype.QrPaymentStatusEnum;
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import lombok.*;
 
 @Entity
-@Table(name = "qr_payments", indexes = {
-        @Index(name = "idx_qr_payments_user_id", columnList = "user_id"),
-        @Index(name = "idx_qr_payments_machine_id", columnList = "machine_id"),
-        @Index(name = "idx_qr_payments_status", columnList = "status"),
-        @Index(name = "idx_qr_payments_reference_code", columnList = "reference_code", unique = true)
-})
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Table(
+        name = "qr_payments",
+        indexes = {
+            @Index(name = "idx_qr_payments_user_id", columnList = "user_id"),
+            @Index(name = "idx_qr_payments_machine_id", columnList = "machine_id"),
+            @Index(name = "idx_qr_payments_status", columnList = "status"),
+            @Index(
+                    name = "idx_qr_payments_reference_code",
+                    columnList = "reference_code",
+                    unique = true)
+        })
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class TQrPaymentEntity {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "user_id", nullable = false)

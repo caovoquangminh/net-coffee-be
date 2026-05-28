@@ -1,5 +1,9 @@
 package com.netcoffee.service.impl;
 
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
 import com.netcoffee.billing.DefaultBillingStrategy;
 import com.netcoffee.constant.AppConstant;
 import com.netcoffee.entity.TSessionEntity;
@@ -10,7 +14,10 @@ import com.netcoffee.repository.SessionRepository;
 import com.netcoffee.service.SessionService;
 import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
-
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -19,15 +26,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class SessionBillingServiceImplTest {
@@ -42,8 +40,13 @@ class SessionBillingServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        billingService = new SessionBillingServiceImpl(
-                sessionRepository, userService, transactionService, new DefaultBillingStrategy(), messagingTemplate);
+        billingService =
+                new SessionBillingServiceImpl(
+                        sessionRepository,
+                        userService,
+                        transactionService,
+                        new DefaultBillingStrategy(),
+                        messagingTemplate);
         billingService.setSessionService(sessionService);
         billingService.self = billingService; // bypass proxy for unit tests
     }
@@ -60,7 +63,8 @@ class SessionBillingServiceImplTest {
         @DisplayName("Happy path — deduct thành công và set lastBilledAt = startedAt + 15 phút")
         void happyPath_deductsAndSetsLastBilledAt() {
             LocalDateTime startedAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(10);
-            TSessionEntity session = buildSession(1L, 10L, startedAt, null, SessionStatusEnum.ACTIVE);
+            TSessionEntity session =
+                    buildSession(1L, 10L, startedAt, null, SessionStatusEnum.ACTIVE);
             TUserEntity user = buildUser(10L, new BigDecimal("5000"));
 
             when(userService.getEntityById(10L)).thenReturn(user);
@@ -73,12 +77,14 @@ class SessionBillingServiceImplTest {
             ArgumentCaptor<LocalDateTime> captor = ArgumentCaptor.forClass(LocalDateTime.class);
             verify(sessionRepository).updateLastBilledAt(eq(1L), captor.capture());
 
-            LocalDateTime expectedLastBilledAt = startedAt.plusMinutes(AppConstant.SESSION_MINIMUM_MINUTES);
+            LocalDateTime expectedLastBilledAt =
+                    startedAt.plusMinutes(AppConstant.SESSION_MINIMUM_MINUTES);
             assertThat(captor.getValue()).isEqualToIgnoringNanos(expectedLastBilledAt);
         }
 
         @Test
-        @DisplayName("Balance không đủ → InsufficientBalanceException (402), không deduct, không set lastBilledAt")
+        @DisplayName(
+                "Balance không đủ → InsufficientBalanceException (402), không deduct, không set lastBilledAt")
         void insufficientBalance_throwsWithoutSideEffects() {
             TUserEntity user = buildUser(10L, new BigDecimal("1000")); // < 2000
             when(userService.getEntityById(10L)).thenReturn(user);
@@ -105,7 +111,8 @@ class SessionBillingServiceImplTest {
         void lastBilledAtInFuture_skips() {
             LocalDateTime startedAt = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5);
             LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(10);
-            TSessionEntity session = buildSession(1L, 10L, startedAt, lastBilledAt, SessionStatusEnum.ACTIVE);
+            TSessionEntity session =
+                    buildSession(1L, 10L, startedAt, lastBilledAt, SessionStatusEnum.ACTIVE);
 
             billingService.processBilling(session);
 
@@ -114,11 +121,13 @@ class SessionBillingServiceImplTest {
         }
 
         @Test
-        @DisplayName("lastBilledAt = null → fallback về startedAt + 15 phút, nếu chưa qua thì bỏ qua")
+        @DisplayName(
+                "lastBilledAt = null → fallback về startedAt + 15 phút, nếu chưa qua thì bỏ qua")
         void nullLastBilledAt_usesMinimumFallback_skipsIfStillInFreePeriod() {
             // Session mới 10 phút, lastBilledAt null → free period = 15 phút chưa hết
             LocalDateTime startedAt = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10);
-            TSessionEntity session = buildSession(1L, 10L, startedAt, null, SessionStatusEnum.ACTIVE);
+            TSessionEntity session =
+                    buildSession(1L, 10L, startedAt, null, SessionStatusEnum.ACTIVE);
 
             billingService.processBilling(session);
 
@@ -130,7 +139,8 @@ class SessionBillingServiceImplTest {
         void ninetySecondsAfterLastBilled_chargesExactAmount() {
             LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(90);
             LocalDateTime startedAt = lastBilledAt.minusMinutes(15);
-            TSessionEntity session = buildSession(1L, 10L, startedAt, lastBilledAt, SessionStatusEnum.ACTIVE);
+            TSessionEntity session =
+                    buildSession(1L, 10L, startedAt, lastBilledAt, SessionStatusEnum.ACTIVE);
             TUserEntity user = buildUser(10L, new BigDecimal("5000"));
 
             when(userService.getEntityById(10L)).thenReturn(user);
@@ -144,15 +154,21 @@ class SessionBillingServiceImplTest {
             assertThat(amountCaptor.getValue()).isEqualByComparingTo("200.00");
 
             verify(sessionRepository).updateLastBilledAt(eq(1L), any(LocalDateTime.class));
-            verify(transactionService).recordDeduct(eq(10L), eq(amountCaptor.getValue()), eq(1L), contains("90s"));
+            verify(transactionService)
+                    .recordDeduct(eq(10L), eq(amountCaptor.getValue()), eq(1L), contains("90s"));
         }
 
         @Test
         @DisplayName("Balance = 0 trước khi charge → force end session, không deduct")
         void zeroBalance_forceEndsWithoutDeduct() {
             LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(60);
-            TSessionEntity session = buildSession(1L, 10L,
-                    lastBilledAt.minusMinutes(15), lastBilledAt, SessionStatusEnum.ACTIVE);
+            TSessionEntity session =
+                    buildSession(
+                            1L,
+                            10L,
+                            lastBilledAt.minusMinutes(15),
+                            lastBilledAt,
+                            SessionStatusEnum.ACTIVE);
             TUserEntity user = buildUser(10L, BigDecimal.ZERO);
 
             when(userService.getEntityById(10L)).thenReturn(user);
@@ -167,14 +183,19 @@ class SessionBillingServiceImplTest {
         @DisplayName("Balance < số tiền owed → charge tối đa bằng balance còn lại")
         void balanceLessThanOwed_chargesRemainingBalance() {
             LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(3600);
-            TSessionEntity session = buildSession(1L, 10L,
-                    lastBilledAt.minusMinutes(15), lastBilledAt, SessionStatusEnum.ACTIVE);
+            TSessionEntity session =
+                    buildSession(
+                            1L,
+                            10L,
+                            lastBilledAt.minusMinutes(15),
+                            lastBilledAt,
+                            SessionStatusEnum.ACTIVE);
             TUserEntity richBalance = buildUser(10L, new BigDecimal("100")); // chỉ còn 100đ
             TUserEntity exhausted = buildUser(10L, BigDecimal.ZERO);
 
             when(userService.getEntityById(10L))
-                    .thenReturn(richBalance)  // lần 1: lấy balance trước deduct
-                    .thenReturn(exhausted);   // lần 2: check sau deduct
+                    .thenReturn(richBalance) // lần 1: lấy balance trước deduct
+                    .thenReturn(exhausted); // lần 2: check sau deduct
 
             billingService.processBilling(session);
 
@@ -191,14 +212,17 @@ class SessionBillingServiceImplTest {
         @DisplayName("Sau khi deduct balance về 0 → force end session")
         void balanceExhaustedAfterDeduct_forceEnds() {
             LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(60);
-            TSessionEntity session = buildSession(1L, 10L,
-                    lastBilledAt.minusMinutes(15), lastBilledAt, SessionStatusEnum.ACTIVE);
+            TSessionEntity session =
+                    buildSession(
+                            1L,
+                            10L,
+                            lastBilledAt.minusMinutes(15),
+                            lastBilledAt,
+                            SessionStatusEnum.ACTIVE);
             TUserEntity before = buildUser(10L, new BigDecimal("133.33")); // vừa đủ 1 phút
-            TUserEntity after  = buildUser(10L, BigDecimal.ZERO);
+            TUserEntity after = buildUser(10L, BigDecimal.ZERO);
 
-            when(userService.getEntityById(10L))
-                    .thenReturn(before)
-                    .thenReturn(after);
+            when(userService.getEntityById(10L)).thenReturn(before).thenReturn(after);
 
             billingService.processBilling(session);
 
@@ -228,7 +252,8 @@ class SessionBillingServiceImplTest {
             ArgumentCaptor<BigDecimal> cap = ArgumentCaptor.forClass(BigDecimal.class);
             verify(userService).deduct(eq(10L), cap.capture());
             assertThat(cap.getValue()).isEqualByComparingTo("200.00");
-            verify(transactionService).recordDeduct(eq(10L), eq(cap.getValue()), eq(1L), contains("90s"));
+            verify(transactionService)
+                    .recordDeduct(eq(10L), eq(cap.getValue()), eq(1L), contains("90s"));
         }
 
         @Test
@@ -246,8 +271,8 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("lastBilledAt = null → không charge")
         void nullLastBilledAt_noCharge() {
-            billingService.chargeFinalBill(10L, 1L, null,
-                    LocalDateTime.now(ZoneOffset.UTC), new BigDecimal("8000"));
+            billingService.chargeFinalBill(
+                    10L, 1L, null, LocalDateTime.now(ZoneOffset.UTC), new BigDecimal("8000"));
 
             verify(userService, never()).deduct(any(), any());
         }
@@ -260,8 +285,12 @@ class SessionBillingServiceImplTest {
 
             when(userService.getEntityById(10L)).thenReturn(user);
 
-            billingService.chargeFinalBill(10L, 1L, lastBilledAt,
-                    LocalDateTime.now(ZoneOffset.UTC), new BigDecimal("8000"));
+            billingService.chargeFinalBill(
+                    10L,
+                    1L,
+                    lastBilledAt,
+                    LocalDateTime.now(ZoneOffset.UTC),
+                    new BigDecimal("8000"));
 
             verify(userService, never()).deduct(any(), any());
         }
@@ -269,7 +298,8 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("Balance < tiền owed → charge tối đa bằng balance")
         void balanceLessThanOwed_chargesRemainingBalance() {
-            LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(3600); // 1 giờ
+            LocalDateTime lastBilledAt =
+                    LocalDateTime.now(ZoneOffset.UTC).minusSeconds(3600); // 1 giờ
             LocalDateTime endedAt = LocalDateTime.now(ZoneOffset.UTC);
             TUserEntity user = buildUser(10L, new BigDecimal("500")); // còn 500đ < 8000đ
 
@@ -297,8 +327,12 @@ class SessionBillingServiceImplTest {
     // Helpers
     // =========================================================================
 
-    private TSessionEntity buildSession(Long id, Long userId, LocalDateTime startedAt,
-                                         LocalDateTime lastBilledAt, SessionStatusEnum status) {
+    private TSessionEntity buildSession(
+            Long id,
+            Long userId,
+            LocalDateTime startedAt,
+            LocalDateTime lastBilledAt,
+            SessionStatusEnum status) {
         return TSessionEntity.builder()
                 .id(id)
                 .userId(userId)
@@ -311,10 +345,6 @@ class SessionBillingServiceImplTest {
     }
 
     private TUserEntity buildUser(Long id, BigDecimal balance) {
-        return TUserEntity.builder()
-                .id(id)
-                .balance(balance)
-                .isActive(true)
-                .build();
+        return TUserEntity.builder().id(id).balance(balance).isActive(true).build();
     }
 }

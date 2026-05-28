@@ -1,12 +1,12 @@
 package com.netcoffee.dto.response;
 
+import java.math.BigDecimal;
+import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.math.BigDecimal;
-import java.util.List;
-
-@Getter @Builder
+@Getter
+@Builder
 public class MenuItemResponse {
     private Long id;
     private String name;
@@ -16,7 +16,8 @@ public class MenuItemResponse {
     private Boolean isAvailable;
     private List<AddonResponse> addons;
 
-    @Getter @Builder
+    @Getter
+    @Builder
     public static class AddonResponse {
         private Long id;
         private String name;

@@ -1,14 +1,14 @@
 package com.netcoffee.dto.response;
 
 import com.netcoffee.enumtype.InventoryTransactionTypeEnum;
-import lombok.Builder;
-import lombok.Getter;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import lombok.Builder;
+import lombok.Getter;
 
-@Getter @Builder
+@Getter
+@Builder
 public class InventoryTransactionResponse {
     private Long id;
     private Long inventoryItemId;
