@@ -20,6 +20,7 @@ public class SessionMapper {
                 .status(entity.getStatus())
                 .pricePerHourSnapshot(entity.getPricePerHourSnapshot())
                 .isFree(entity.getIsFree())
+                .lastBilledAt(entity.getLastBilledAt())
                 .build();
     }
 }

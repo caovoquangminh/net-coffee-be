@@ -14,38 +14,53 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController @RequestMapping("/api/orders") @RequiredArgsConstructor
-public class FoodOrderController
-{
+public class FoodOrderController {
 
     private final FoodOrderService foodOrderService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<OrderResponse>> createOrder(@AuthenticationPrincipal UserDetails userDetails,
-            @Valid @RequestBody CreateOrderRequest request)
-    {
+    public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody CreateOrderRequest request) {
         Long userId = Long.parseLong(userDetails.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Đặt món thành công", foodOrderService.createOrder(userId, request)));
     }
 
     @PatchMapping("/{id}/status")
-    public ResponseEntity<ApiResponse<OrderResponse>> updateStatus(@PathVariable Long id,
-            @RequestParam OrderStatusEnum status)
-    {
-        return ResponseEntity.ok(ApiResponse.ok(foodOrderService.updateStatus(id, status)));
+    public ResponseEntity<ApiResponse<OrderResponse>> updateStatus(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @RequestParam OrderStatusEnum status) {
+        Long staffId = Long.parseLong(userDetails.getUsername());
+        return ResponseEntity.ok(ApiResponse.ok(foodOrderService.updateStatus(id, status, staffId)));
+    }
+
+    @PatchMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        Long staffId = Long.parseLong(userDetails.getUsername());
+        String reason = body.getOrDefault("reason", "");
+        return ResponseEntity.ok(ApiResponse.ok(foodOrderService.cancelOrder(id, reason, staffId)));
     }
 
     @GetMapping("/session/{sessionId}")
-    public ResponseEntity<ApiResponse<List<OrderResponse>>> getBySession(@PathVariable Long sessionId)
-    {
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> getBySession(@PathVariable Long sessionId) {
         return ResponseEntity.ok(ApiResponse.ok(foodOrderService.findBySessionId(sessionId)));
     }
 
     @GetMapping("/pending")
-    public ResponseEntity<ApiResponse<List<OrderResponse>>> getPending()
-    {
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> getPending() {
         return ResponseEntity.ok(ApiResponse.ok(foodOrderService.findPendingOrders()));
+    }
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> getAll() {
+        return ResponseEntity.ok(ApiResponse.ok(foodOrderService.findAll()));
     }
 }

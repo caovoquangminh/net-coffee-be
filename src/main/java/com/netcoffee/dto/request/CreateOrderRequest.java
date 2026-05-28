@@ -1,5 +1,6 @@
 package com.netcoffee.dto.request;
 
+import com.netcoffee.enumtype.FoodOrderPaymentEnum;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -23,6 +24,8 @@ public class CreateOrderRequest
 
     private String note;
 
+    private FoodOrderPaymentEnum paymentMethod;
+
     @Getter @Setter
     public static class OrderItemRequest
     {
@@ -32,5 +35,8 @@ public class CreateOrderRequest
         @NotNull
         @Min(value = 1, message = "Số lượng phải ít nhất là 1")
         private Integer quantity;
+
+        /** Danh sách addon ID đã chọn (tuỳ chọn) */
+        private List<Long> addonIds;
     }
 }

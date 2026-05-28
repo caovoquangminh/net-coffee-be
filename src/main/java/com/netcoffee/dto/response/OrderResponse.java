@@ -1,5 +1,6 @@
 package com.netcoffee.dto.response;
 
+import com.netcoffee.enumtype.FoodOrderPaymentEnum;
 import com.netcoffee.enumtype.OrderStatusEnum;
 import lombok.Builder;
 import lombok.Getter;
@@ -18,6 +19,12 @@ public class OrderResponse
     private OrderStatusEnum status;
     private BigDecimal totalPrice;
     private String note;
+    private Long confirmedBy;
+    private String confirmedByName;
+    private LocalDateTime confirmedAt;
+    private String cancelReason;
+    private FoodOrderPaymentEnum paymentMethod;
+    private String qrImageUrl;
     private LocalDateTime createdAt;
     private List<OrderItemResponse> items;
 
@@ -29,5 +36,14 @@ public class OrderResponse
         private Integer quantity;
         private BigDecimal unitPrice;
         private BigDecimal subtotal;
+        private List<AddonResponse> addons;
+    }
+
+    @Getter @Builder
+    public static class AddonResponse
+    {
+        private Long addonId;
+        private String addonName;
+        private BigDecimal addonPrice;
     }
 }

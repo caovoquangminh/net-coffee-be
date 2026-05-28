@@ -21,4 +21,5 @@ public class SessionResponse
     private SessionStatusEnum status;
     private BigDecimal pricePerHourSnapshot;
     private Boolean isFree;
+    private LocalDateTime lastBilledAt;
 }
