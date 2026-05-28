@@ -1,5 +1,6 @@
 package com.netcoffee.service;
 
+import com.netcoffee.dto.response.MenuItemResponse;
 import com.netcoffee.entity.TMenuItemEntity;
 
 import java.util.List;
@@ -7,9 +8,9 @@ import java.util.List;
 public interface MenuItemService
 {
 
-    List<TMenuItemEntity> findAvailable();
+    List<MenuItemResponse> findAvailable();
 
-    List<TMenuItemEntity> findByCategory(String category);
+    List<MenuItemResponse> findByCategory(String category);
 
     TMenuItemEntity findById(Long id);
 }

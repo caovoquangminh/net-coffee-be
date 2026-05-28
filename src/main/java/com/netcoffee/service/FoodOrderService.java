@@ -11,9 +11,13 @@ public interface FoodOrderService
 
     OrderResponse createOrder(Long userId, CreateOrderRequest request);
 
-    OrderResponse updateStatus(Long orderId, OrderStatusEnum status);
+    OrderResponse updateStatus(Long orderId, OrderStatusEnum status, Long confirmedByUserId);
+
+    OrderResponse cancelOrder(Long orderId, String reason, Long cancelledByUserId);
 
     List<OrderResponse> findBySessionId(Long sessionId);
 
     List<OrderResponse> findPendingOrders();
+
+    List<OrderResponse> findAll();
 }

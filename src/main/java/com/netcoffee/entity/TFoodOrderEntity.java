@@ -1,5 +1,6 @@
 package com.netcoffee.entity;
 
+import com.netcoffee.enumtype.FoodOrderPaymentEnum;
 import com.netcoffee.enumtype.OrderStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
@@ -37,6 +38,20 @@ public class TFoodOrderEntity
 
     @Column(name = "note", length = 500)
     private String note;
+
+    /** ID nhân viên/admin xác nhận đơn */
+    @Column(name = "confirmed_by")
+    private Long confirmedBy;
+
+    @Column(name = "confirmed_at")
+    private LocalDateTime confirmedAt;
+
+    @Column(name = "cancel_reason", length = 300)
+    private String cancelReason;
+
+    @Enumerated(EnumType.STRING) @Column(name = "payment_method", nullable = false, length = 20)
+    @Builder.Default
+    private FoodOrderPaymentEnum paymentMethod = FoodOrderPaymentEnum.CASH;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
