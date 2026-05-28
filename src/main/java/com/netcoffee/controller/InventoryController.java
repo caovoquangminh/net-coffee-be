@@ -1,5 +1,6 @@
 package com.netcoffee.controller;
 
+import com.netcoffee.constant.ApiPaths;
 import com.netcoffee.dto.request.CreateInventoryItemRequest;
 import com.netcoffee.dto.request.ExportStockRequest;
 import com.netcoffee.dto.request.ImportStockRequest;
@@ -8,6 +9,7 @@ import com.netcoffee.dto.response.InventoryItemResponse;
 import com.netcoffee.dto.response.InventoryTransactionResponse;
 import com.netcoffee.service.InventoryService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,10 +21,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/api/inventory")
+@RequestMapping(ApiPaths.INVENTORY)
 @RequiredArgsConstructor
 public class InventoryController {
 
@@ -47,15 +47,17 @@ public class InventoryController {
     public ResponseEntity<ApiResponse<InventoryItemResponse>> createItem(
             @Valid @RequestBody CreateInventoryItemRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Thêm mặt hàng thành công", inventoryService.createItem(request)));
+                .body(
+                        ApiResponse.ok(
+                                "Thêm mặt hàng thành công", inventoryService.createItem(request)));
     }
 
     @PutMapping("/items/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<InventoryItemResponse>> updateItem(
-            @PathVariable Long id,
-            @Valid @RequestBody CreateInventoryItemRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("Cập nhật thành công", inventoryService.updateItem(id, request)));
+            @PathVariable Long id, @Valid @RequestBody CreateInventoryItemRequest request) {
+        return ResponseEntity.ok(
+                ApiResponse.ok("Cập nhật thành công", inventoryService.updateItem(id, request)));
     }
 
     // ── Transactions ─────────────────────────────────────────────────────────
@@ -67,7 +69,10 @@ public class InventoryController {
             @Valid @RequestBody ImportStockRequest request) {
         Long userId = Long.parseLong(userDetails.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Nhập kho thành công", inventoryService.importStock(userId, request)));
+                .body(
+                        ApiResponse.ok(
+                                "Nhập kho thành công",
+                                inventoryService.importStock(userId, request)));
     }
 
     @PostMapping("/export")
@@ -77,7 +82,10 @@ public class InventoryController {
             @Valid @RequestBody ExportStockRequest request) {
         Long userId = Long.parseLong(userDetails.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Xuất kho thành công", inventoryService.exportStock(userId, request)));
+                .body(
+                        ApiResponse.ok(
+                                "Xuất kho thành công",
+                                inventoryService.exportStock(userId, request)));
     }
 
     @GetMapping("/transactions")
@@ -90,8 +98,8 @@ public class InventoryController {
     @GetMapping("/transactions/item/{itemId}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<InventoryTransactionResponse>>> getByItem(
-            @PathVariable Long itemId,
-            @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.ok(inventoryService.getTransactionHistory(itemId, pageable)));
+            @PathVariable Long itemId, @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(inventoryService.getTransactionHistory(itemId, pageable)));
     }
 }

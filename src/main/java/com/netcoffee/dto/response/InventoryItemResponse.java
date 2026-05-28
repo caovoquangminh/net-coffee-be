@@ -1,12 +1,12 @@
 package com.netcoffee.dto.response;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
-@Getter @Builder
+@Getter
+@Builder
 public class InventoryItemResponse {
     private Long id;
     private String name;

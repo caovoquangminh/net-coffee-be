@@ -1,5 +1,9 @@
 package com.netcoffee.service.impl;
 
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
 import com.netcoffee.dto.request.LoginRequest;
 import com.netcoffee.dto.response.AuthResponse;
 import com.netcoffee.dto.response.SessionResponse;
@@ -10,6 +14,8 @@ import com.netcoffee.mapper.UserMapper;
 import com.netcoffee.repository.UserRepository;
 import com.netcoffee.security.JwtTokenProvider;
 import com.netcoffee.service.SessionService;
+import java.math.BigDecimal;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -19,13 +25,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.math.BigDecimal;
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceImplTest {
@@ -40,8 +39,13 @@ class AuthServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthServiceImpl(userRepository, passwordEncoder,
-                jwtTokenProvider, userMapper, sessionService);
+        authService =
+                new AuthServiceImpl(
+                        userRepository,
+                        passwordEncoder,
+                        jwtTokenProvider,
+                        userMapper,
+                        sessionService);
     }
 
     // =========================================================================
@@ -74,7 +78,8 @@ class AuthServiceImplTest {
         }
 
         @Test
-        @DisplayName("Máy đang IN_USE bởi session cũ của user → getOrStartSession reconnect, trả về session cũ")
+        @DisplayName(
+                "Máy đang IN_USE bởi session cũ của user → getOrStartSession reconnect, trả về session cũ")
         void machineInUse_sameUserSameMachine_reconnectsToExistingSession() {
             TUserEntity user = buildActiveUser(1L, "0901234567", "hashed");
             SessionResponse existingSession = buildSession(99L, 1L, 5L);
@@ -129,16 +134,22 @@ class AuthServiceImplTest {
             when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(user));
             when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
 
-            assertThatThrownBy(() -> authService.login(buildLoginRequest("0901234567", "wrong", 1L)))
+            assertThatThrownBy(
+                            () -> authService.login(buildLoginRequest("0901234567", "wrong", 1L)))
                     .isInstanceOf(BadCredentialsException.class);
         }
 
         @Test
         @DisplayName("Tài khoản bị khóa → BadCredentialsException")
         void lockedAccount_throwsBadCredentials() {
-            TUserEntity user = TUserEntity.builder()
-                    .id(1L).phoneNumber("0901234567").passwordHash("hashed")
-                    .isActive(false).balance(BigDecimal.ZERO).build();
+            TUserEntity user =
+                    TUserEntity.builder()
+                            .id(1L)
+                            .phoneNumber("0901234567")
+                            .passwordHash("hashed")
+                            .isActive(false)
+                            .balance(BigDecimal.ZERO)
+                            .build();
             when(userRepository.findByPhoneNumber("0901234567")).thenReturn(Optional.of(user));
 
             assertThatThrownBy(() -> authService.login(buildLoginRequest("0901234567", "pass", 1L)))
@@ -166,7 +177,8 @@ class AuthServiceImplTest {
         }
 
         @Test
-        @DisplayName("Số dư không đủ 2000đ → InsufficientBalanceException propagate, không trả token")
+        @DisplayName(
+                "Số dư không đủ 2000đ → InsufficientBalanceException propagate, không trả token")
         void insufficientBalance_throwsAndDoesNotReturnToken() {
             TUserEntity user = buildActiveUser(1L, "0901234567", "hashed");
             LoginRequest req = buildLoginRequest("0901234567", "pass", 5L);
@@ -175,7 +187,9 @@ class AuthServiceImplTest {
             when(passwordEncoder.matches("pass", "hashed")).thenReturn(true);
             when(jwtTokenProvider.generateToken(1L, "0901234567")).thenReturn("jwt-token");
             when(sessionService.getOrStartSession(1L, 5L))
-                    .thenThrow(new InsufficientBalanceException("Số dư không đủ để mở máy. Cần tối thiểu 2000đ"));
+                    .thenThrow(
+                            new InsufficientBalanceException(
+                                    "Số dư không đủ để mở máy. Cần tối thiểu 2000đ"));
 
             assertThatThrownBy(() -> authService.login(req))
                     .isInstanceOf(InsufficientBalanceException.class)
@@ -229,13 +243,16 @@ class AuthServiceImplTest {
 
     private TUserEntity buildActiveUser(Long id, String phone, String hash) {
         return TUserEntity.builder()
-                .id(id).phoneNumber(phone).passwordHash(hash)
-                .isActive(true).balance(new BigDecimal("10000")).build();
+                .id(id)
+                .phoneNumber(phone)
+                .passwordHash(hash)
+                .isActive(true)
+                .balance(new BigDecimal("10000"))
+                .build();
     }
 
     private SessionResponse buildSession(Long sessionId, Long userId, Long machineId) {
-        return SessionResponse.builder()
-                .id(sessionId).userId(userId).machineId(machineId).build();
+        return SessionResponse.builder().id(sessionId).userId(userId).machineId(machineId).build();
     }
 
     private LoginRequest buildLoginRequest(String phone, String password, Long machineId) {

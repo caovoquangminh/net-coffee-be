@@ -11,6 +11,12 @@ import com.netcoffee.service.SessionBillingService;
 import com.netcoffee.service.SessionService;
 import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,13 +26,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
@@ -47,9 +46,7 @@ public class SessionBillingServiceImpl implements SessionBillingService {
     }
 
     // Self-injection để @Transactional(REQUIRES_NEW) trên processBillingNewTx được proxy intercept
-    @Lazy
-    @Autowired
-    SessionBillingServiceImpl self;
+    @Lazy @Autowired SessionBillingServiceImpl self;
 
     // -------------------------------------------------------------------------
     // chargeMinimumFee
@@ -61,8 +58,10 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         TUserEntity user = userService.getEntityById(userId);
 
         if (user.getBalance().compareTo(AppConstant.SESSION_MINIMUM_CHARGE) < 0) {
-            throw new InsufficientBalanceException("Số dư không đủ để mở máy. Cần tối thiểu "
-                    + AppConstant.SESSION_MINIMUM_CHARGE.toPlainString() + "đ");
+            throw new InsufficientBalanceException(
+                    "Số dư không đủ để mở máy. Cần tối thiểu "
+                            + AppConstant.SESSION_MINIMUM_CHARGE.toPlainString()
+                            + "đ");
         }
 
         userService.deduct(userId, AppConstant.SESSION_MINIMUM_CHARGE);
@@ -71,21 +70,29 @@ public class SessionBillingServiceImpl implements SessionBillingService {
                 userId,
                 AppConstant.SESSION_MINIMUM_CHARGE,
                 sessionId,
-                "Phí mở máy (tối thiểu " + AppConstant.SESSION_MINIMUM_MINUTES + " phút)"
-        );
+                "Phí mở máy (tối thiểu " + AppConstant.SESSION_MINIMUM_MINUTES + " phút)");
 
         // Đánh dấu SESSION_MINIMUM_MINUTES đầu tiên đã được thanh toán trước
-        sessionRepository.findById(sessionId).ifPresent(session -> {
-            LocalDateTime billedUpTo = session.getStartedAt()
-                    .plusMinutes(AppConstant.SESSION_MINIMUM_MINUTES);
-            sessionRepository.updateLastBilledAt(sessionId, billedUpTo);
-        });
+        sessionRepository
+                .findById(sessionId)
+                .ifPresent(
+                        session -> {
+                            LocalDateTime billedUpTo =
+                                    session.getStartedAt()
+                                            .plusMinutes(AppConstant.SESSION_MINIMUM_MINUTES);
+                            sessionRepository.updateLastBilledAt(sessionId, billedUpTo);
+                        });
 
-        BigDecimal balanceAfterMinFee = user.getBalance().subtract(AppConstant.SESSION_MINIMUM_CHARGE);
-        messagingTemplate.convertAndSend("/topic/balance/" + userId, Map.of("balance", balanceAfterMinFee));
+        BigDecimal balanceAfterMinFee =
+                user.getBalance().subtract(AppConstant.SESSION_MINIMUM_CHARGE);
+        messagingTemplate.convertAndSend(
+                "/topic/balance/" + userId, Map.of("balance", balanceAfterMinFee));
 
-        log.info("Charged minimum fee: user={}, amount={}, session={}",
-                userId, AppConstant.SESSION_MINIMUM_CHARGE, sessionId);
+        log.info(
+                "Charged minimum fee: user={}, amount={}, session={}",
+                userId,
+                AppConstant.SESSION_MINIMUM_CHARGE,
+                sessionId);
     }
 
     // -------------------------------------------------------------------------
@@ -132,9 +139,10 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
         // Điểm bắt đầu charge: sau khi phí minimum đã cover
-        LocalDateTime lastBilledAt = session.getLastBilledAt() != null
-                ? session.getLastBilledAt()
-                : session.getStartedAt().plusMinutes(AppConstant.SESSION_MINIMUM_MINUTES);
+        LocalDateTime lastBilledAt =
+                session.getLastBilledAt() != null
+                        ? session.getLastBilledAt()
+                        : session.getStartedAt().plusMinutes(AppConstant.SESSION_MINIMUM_MINUTES);
 
         // Chưa qua kỳ đã trả trước → bỏ qua
         if (!now.isAfter(lastBilledAt)) {
@@ -150,8 +158,10 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         }
 
         long unbilledSeconds = ChronoUnit.SECONDS.between(lastBilledAt, now);
-        BigDecimal deductAmount = billingStrategy.calcCharge(session.getPricePerHourSnapshot(), unbilledSeconds)
-                .min(user.getBalance());
+        BigDecimal deductAmount =
+                billingStrategy
+                        .calcCharge(session.getPricePerHourSnapshot(), unbilledSeconds)
+                        .min(user.getBalance());
 
         userService.deduct(session.getUserId(), deductAmount);
 
@@ -162,14 +172,17 @@ public class SessionBillingServiceImpl implements SessionBillingService {
                 session.getUserId(),
                 deductAmount,
                 session.getId(),
-                "Phí sử dụng máy (" + unbilledSeconds + "s)"
-        );
+                "Phí sử dụng máy (" + unbilledSeconds + "s)");
 
         BigDecimal newBalance = user.getBalance().subtract(deductAmount);
-        messagingTemplate.convertAndSend("/topic/balance/" + session.getUserId(), Map.of("balance", newBalance));
+        messagingTemplate.convertAndSend(
+                "/topic/balance/" + session.getUserId(), Map.of("balance", newBalance));
 
-        log.debug("Billing tick: session={}, unbilled={}s, deduct={}",
-                session.getId(), unbilledSeconds, deductAmount);
+        log.debug(
+                "Billing tick: session={}, unbilled={}s, deduct={}",
+                session.getId(),
+                unbilledSeconds,
+                deductAmount);
 
         // deductAmount = calcCharge.min(user.getBalance()) → nếu deductAmount >= balance
         // thì toàn bộ balance vừa bị lấy hết. Không đọc lại entity (L1 cache sẽ stale).
@@ -185,9 +198,12 @@ public class SessionBillingServiceImpl implements SessionBillingService {
 
     @Override
     @Transactional
-    public void chargeFinalBill(Long userId, Long sessionId,
-                                LocalDateTime lastBilledAt, LocalDateTime endedAt,
-                                BigDecimal pricePerHour) {
+    public void chargeFinalBill(
+            Long userId,
+            Long sessionId,
+            LocalDateTime lastBilledAt,
+            LocalDateTime endedAt,
+            BigDecimal pricePerHour) {
         if (lastBilledAt == null || !endedAt.isAfter(lastBilledAt)) {
             return;
         }
@@ -202,8 +218,8 @@ public class SessionBillingServiceImpl implements SessionBillingService {
             return;
         }
 
-        BigDecimal deductAmount = billingStrategy.calcCharge(pricePerHour, unbilledSeconds)
-                .min(user.getBalance());
+        BigDecimal deductAmount =
+                billingStrategy.calcCharge(pricePerHour, unbilledSeconds).min(user.getBalance());
 
         if (deductAmount.compareTo(BigDecimal.ZERO) <= 0) {
             return;
@@ -212,17 +228,15 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         userService.deduct(userId, deductAmount);
 
         transactionService.recordDeduct(
-                userId,
-                deductAmount,
-                sessionId,
-                "Kết toán cuối phiên (" + unbilledSeconds + "s)"
-        );
+                userId, deductAmount, sessionId, "Kết toán cuối phiên (" + unbilledSeconds + "s)");
 
         BigDecimal newBalance = user.getBalance().subtract(deductAmount);
         messagingTemplate.convertAndSend("/topic/balance/" + userId, Map.of("balance", newBalance));
 
-        log.info("Final billing: session={}, unbilled={}s, deduct={}",
-                sessionId, unbilledSeconds, deductAmount);
+        log.info(
+                "Final billing: session={}, unbilled={}s, deduct={}",
+                sessionId,
+                unbilledSeconds,
+                deductAmount);
     }
-
 }

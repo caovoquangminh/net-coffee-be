@@ -3,11 +3,9 @@ package com.netcoffee.service;
 import com.netcoffee.dto.response.MachineResponse;
 import com.netcoffee.entity.TMachineEntity;
 import com.netcoffee.enumtype.MachineStatusEnum;
-
 import java.util.List;
 
-public interface MachineService
-{
+public interface MachineService {
 
     List<MachineResponse> findAll();
 

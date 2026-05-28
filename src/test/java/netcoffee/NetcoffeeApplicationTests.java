@@ -7,8 +7,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest(classes = NetcoffeeApplication.class)
 class NetcoffeeApplicationTests {
 
-	@Test
-	void contextLoads() {
-	}
-
+    @Test
+    void contextLoads() {}
 }

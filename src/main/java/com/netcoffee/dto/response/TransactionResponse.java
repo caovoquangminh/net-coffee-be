@@ -2,15 +2,14 @@ package com.netcoffee.dto.response;
 
 import com.netcoffee.enumtype.PaymentMethodEnum;
 import com.netcoffee.enumtype.TransactionTypeEnum;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
-@Getter @Builder
-public class TransactionResponse
-{
+@Getter
+@Builder
+public class TransactionResponse {
 
     private Long id;
     private TransactionTypeEnum type;

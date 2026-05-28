@@ -84,21 +84,40 @@ public class UserManagementServiceImpl implements UserManagementService {
         if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
             throw new IllegalArgumentException("Số điện thoại đã được đăng ký");
         }
-        UserRoleEnum role = (request.getRole() != null && request.getRole() != UserRoleEnum.ADMIN)
-                ? request.getRole()
-                : UserRoleEnum.CUSTOMER;
-        TUserEntity user = TUserEntity.builder()
-                .phoneNumber(request.getPhoneNumber())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName() != null ? request.getFullName().trim() : null)
-                .isActive(true)
-                .role(role)
-                .build();
+        UserRoleEnum role =
+                (request.getRole() != null && request.getRole() != UserRoleEnum.ADMIN)
+                        ? request.getRole()
+                        : UserRoleEnum.CUSTOMER;
+        TUserEntity user =
+                TUserEntity.builder()
+                        .phoneNumber(request.getPhoneNumber())
+                        .passwordHash(passwordEncoder.encode(request.getPassword()))
+                        .fullName(
+                                request.getFullName() != null ? request.getFullName().trim() : null)
+                        .isActive(true)
+                        .role(role)
+                        .build();
         return userMapper.toResponse(userRepository.save(user));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.List<com.netcoffee.dto.response.UserResponse> searchCustomers(String phone) {
+        if (phone == null || phone.length() < 3) {
+            return java.util.List.of();
+        }
+        return userRepository
+                .findByRoleAndPhoneNumberContainingOrderByCreatedAtDesc(
+                        com.netcoffee.enumtype.UserRoleEnum.CUSTOMER, phone)
+                .stream()
+                .map(userMapper::toResponse)
+                .toList();
+    }
+
     private TUserEntity findOrThrow(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại: " + userId));
+        return userRepository
+                .findById(userId)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Người dùng không tồn tại: " + userId));
     }
 }

@@ -3,14 +3,13 @@ package com.netcoffee.controller;
 import com.netcoffee.dto.ChatMessageDto;
 import com.netcoffee.dto.ChatPresenceDto;
 import com.netcoffee.service.ChatPresenceService;
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-
-import java.time.Instant;
 
 @Controller
 @RequiredArgsConstructor
@@ -20,10 +19,7 @@ public class ChatController {
     private final ChatPresenceService presenceService;
 
     @MessageMapping("/chat.send/{machineId}")
-    public void sendMessage(
-            @DestinationVariable Long machineId,
-            @Payload ChatMessageDto message
-    ) {
+    public void sendMessage(@DestinationVariable Long machineId, @Payload ChatMessageDto message) {
         message.setMachineId(machineId);
         message.setTimestamp(Instant.now());
         messagingTemplate.convertAndSend("/topic/chat/" + machineId, message);

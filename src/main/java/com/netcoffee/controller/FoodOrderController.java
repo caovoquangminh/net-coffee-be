@@ -1,11 +1,14 @@
 package com.netcoffee.controller;
 
+import com.netcoffee.constant.ApiPaths;
 import com.netcoffee.dto.request.CreateOrderRequest;
 import com.netcoffee.dto.response.ApiResponse;
 import com.netcoffee.dto.response.OrderResponse;
 import com.netcoffee.enumtype.OrderStatusEnum;
 import com.netcoffee.service.FoodOrderService;
 import jakarta.validation.Valid;
+import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,10 +16,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
-
-@RestController @RequestMapping("/api/orders") @RequiredArgsConstructor
+@RestController
+@RequestMapping(ApiPaths.ORDERS)
+@RequiredArgsConstructor
 public class FoodOrderController {
 
     private final FoodOrderService foodOrderService;
@@ -27,7 +29,10 @@ public class FoodOrderController {
             @Valid @RequestBody CreateOrderRequest request) {
         Long userId = Long.parseLong(userDetails.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Đặt món thành công", foodOrderService.createOrder(userId, request)));
+                .body(
+                        ApiResponse.ok(
+                                "Đặt món thành công",
+                                foodOrderService.createOrder(userId, request)));
     }
 
     @PatchMapping("/{id}/status")
@@ -36,7 +41,8 @@ public class FoodOrderController {
             @PathVariable Long id,
             @RequestParam OrderStatusEnum status) {
         Long staffId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(ApiResponse.ok(foodOrderService.updateStatus(id, status, staffId)));
+        return ResponseEntity.ok(
+                ApiResponse.ok(foodOrderService.updateStatus(id, status, staffId)));
     }
 
     @PatchMapping("/{id}/cancel")
@@ -50,7 +56,8 @@ public class FoodOrderController {
     }
 
     @GetMapping("/session/{sessionId}")
-    public ResponseEntity<ApiResponse<List<OrderResponse>>> getBySession(@PathVariable Long sessionId) {
+    public ResponseEntity<ApiResponse<List<OrderResponse>>> getBySession(
+            @PathVariable Long sessionId) {
         return ResponseEntity.ok(ApiResponse.ok(foodOrderService.findBySessionId(sessionId)));
     }
 

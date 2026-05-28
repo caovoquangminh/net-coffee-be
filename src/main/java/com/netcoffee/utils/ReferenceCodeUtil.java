@@ -8,21 +8,14 @@ public final class ReferenceCodeUtil {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private static final String CHARS =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final String CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     // NC + 6 ký tự = 8 ký tự total
     private static final int RANDOM_LENGTH = 6;
 
-    /**
-     * Match:
-     * NC123456
-     * nap tien NC123456
-     * abc NCABC123 xyz
-     */
+    /** Match: NC123456 nap tien NC123456 abc NCABC123 xyz */
     private static final Pattern CONTENT_PATTERN =
-            Pattern.compile("(NC[A-Z0-9]{6})",
-                    Pattern.CASE_INSENSITIVE);
+            Pattern.compile("(NC[A-Z0-9]{6})", Pattern.CASE_INSENSITIVE);
 
     private ReferenceCodeUtil() {}
 
@@ -30,11 +23,7 @@ public final class ReferenceCodeUtil {
         StringBuilder sb = new StringBuilder("NC");
 
         for (int i = 0; i < RANDOM_LENGTH; i++) {
-            sb.append(
-                    CHARS.charAt(
-                            RANDOM.nextInt(CHARS.length())
-                    )
-            );
+            sb.append(CHARS.charAt(RANDOM.nextInt(CHARS.length())));
         }
 
         return sb.toString();
@@ -45,8 +34,7 @@ public final class ReferenceCodeUtil {
             return null;
         }
 
-        Matcher matcher =
-                CONTENT_PATTERN.matcher(content.toUpperCase());
+        Matcher matcher = CONTENT_PATTERN.matcher(content.toUpperCase());
 
         if (matcher.find()) {
             return matcher.group(1);

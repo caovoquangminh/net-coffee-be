@@ -3,12 +3,12 @@ package com.netcoffee.dto.request;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.math.BigDecimal;
-
-@Getter @Setter
+@Getter
+@Setter
 public class CreateInventoryItemRequest {
 
     @NotBlank(message = "Tên mặt hàng không được trống")

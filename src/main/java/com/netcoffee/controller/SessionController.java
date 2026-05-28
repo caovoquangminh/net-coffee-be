@@ -1,11 +1,13 @@
 package com.netcoffee.controller;
 
+import com.netcoffee.constant.ApiPaths;
 import com.netcoffee.dto.request.StartSessionRequest;
 import com.netcoffee.dto.response.ActiveSessionWithUserResponse;
 import com.netcoffee.dto.response.ApiResponse;
 import com.netcoffee.dto.response.SessionResponse;
 import com.netcoffee.service.SessionService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,10 +16,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/api/sessions")
+@RequestMapping(ApiPaths.SESSIONS)
 @RequiredArgsConstructor
 public class SessionController {
 
@@ -37,32 +37,32 @@ public class SessionController {
 
     @PostMapping("/{id}/end")
     public ResponseEntity<ApiResponse<SessionResponse>> endSession(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(ApiResponse.ok("Session kết thúc", sessionService.endSession(id, userId)));
+        return ResponseEntity.ok(
+                ApiResponse.ok("Session kết thúc", sessionService.endSession(id, userId)));
     }
 
     @PostMapping("/{id}/force-end")
     public ResponseEntity<ApiResponse<SessionResponse>> forceEndSession(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        boolean isAdmin = userDetails.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isAdmin =
+                userDetails.getAuthorities().stream()
+                        .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         if (!isAdmin) {
             SessionResponse existing = sessionService.findById(id);
             if (!existing.getUserId().equals(userId)) {
                 throw new AccessDeniedException("Không có quyền kết thúc phiên này");
             }
         }
-        return ResponseEntity.ok(ApiResponse.ok("Session bị kết thúc", sessionService.forceEndSession(id)));
+        return ResponseEntity.ok(
+                ApiResponse.ok("Session bị kết thúc", sessionService.forceEndSession(id)));
     }
 
     @PostMapping("/{id}/heartbeat")
     public ResponseEntity<ApiResponse<Void>> heartbeat(
-            @PathVariable Long id,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
         sessionService.heartbeat(id, userId);
         return ResponseEntity.ok(ApiResponse.ok("OK", null));

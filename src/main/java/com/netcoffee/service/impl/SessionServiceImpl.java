@@ -3,7 +3,6 @@ package com.netcoffee.service.impl;
 import com.netcoffee.constant.AppConstant;
 import com.netcoffee.dto.request.StartSessionRequest;
 import com.netcoffee.dto.response.ActiveSessionWithUserResponse;
-import com.netcoffee.exception.InsufficientBalanceException;
 import com.netcoffee.dto.response.SessionResponse;
 import com.netcoffee.entity.TMachineEntity;
 import com.netcoffee.entity.TPricingPlanEntity;
@@ -11,6 +10,7 @@ import com.netcoffee.entity.TSessionEntity;
 import com.netcoffee.entity.TUserEntity;
 import com.netcoffee.enumtype.MachineStatusEnum;
 import com.netcoffee.enumtype.SessionStatusEnum;
+import com.netcoffee.exception.InsufficientBalanceException;
 import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.mapper.SessionMapper;
 import com.netcoffee.repository.MachineRepository;
@@ -21,15 +21,6 @@ import com.netcoffee.service.SessionBillingService;
 import com.netcoffee.service.SessionService;
 import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -39,6 +30,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -71,10 +70,16 @@ public class SessionServiceImpl implements SessionService {
         } catch (InsufficientBalanceException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("Could not start session for user={}: {}, checking for existing", userId, e.getMessage());
+            log.warn(
+                    "Could not start session for user={}: {}, checking for existing",
+                    userId,
+                    e.getMessage());
             SessionResponse existing = findActiveByUserId(userId);
             if (existing != null && existing.getMachineId().equals(machineId)) {
-                log.info("Reconnected to existing session: user={}, session={}", userId, existing.getId());
+                log.info(
+                        "Reconnected to existing session: user={}, session={}",
+                        userId,
+                        existing.getId());
                 return existing;
             }
             return null;
@@ -85,45 +90,58 @@ public class SessionServiceImpl implements SessionService {
     @Transactional
     public SessionResponse startSession(StartSessionRequest request) {
         // Pessimistic lock — ngăn 2 request đồng thời khởi session trên cùng 1 máy
-        TMachineEntity machine = machineRepository.findByIdForUpdate(request.getMachineId())
-                .orElseThrow(() -> new ResourceNotFoundException("Máy không tồn tại"));
+        TMachineEntity machine =
+                machineRepository
+                        .findByIdForUpdate(request.getMachineId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Máy không tồn tại"));
 
         if (machine.getStatus() != MachineStatusEnum.AVAILABLE) {
             throw new IllegalStateException("Máy " + machine.getMachineCode() + " không khả dụng");
         }
 
-        if (sessionRepository.existsByMachineIdAndStatus(request.getMachineId(), SessionStatusEnum.ACTIVE)) {
+        if (sessionRepository.existsByMachineIdAndStatus(
+                request.getMachineId(), SessionStatusEnum.ACTIVE)) {
             throw new IllegalStateException("Máy đang có session đang chạy");
         }
 
-        BigDecimal pricePerHour = pricingPlanRepository
-                .findApplicablePlan(machine.getRoomZone(), LocalTime.now(ZoneOffset.UTC))
-                .map(TPricingPlanEntity::getPricePerHour)
-                .orElse(AppConstant.SESSION_PRICE_PER_HOUR);
+        BigDecimal pricePerHour =
+                pricingPlanRepository
+                        .findApplicablePlan(machine.getRoomZone(), LocalTime.now(ZoneOffset.UTC))
+                        .map(TPricingPlanEntity::getPricePerHour)
+                        .orElse(AppConstant.SESSION_PRICE_PER_HOUR);
 
-        TUserEntity user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+        TUserEntity user =
+                userRepository
+                        .findById(request.getUserId())
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Người dùng không tồn tại"));
         boolean isFree = user.getRole() != null && user.getRole().name().equals("ADMIN");
 
-        TSessionEntity session = TSessionEntity.builder()
-                .userId(request.getUserId())
-                .machineId(request.getMachineId())
-                .status(SessionStatusEnum.ACTIVE)
-                .pricePerHourSnapshot(pricePerHour)
-                .isFree(isFree)
-                .build();
+        TSessionEntity session =
+                TSessionEntity.builder()
+                        .userId(request.getUserId())
+                        .machineId(request.getMachineId())
+                        .status(SessionStatusEnum.ACTIVE)
+                        .pricePerHourSnapshot(pricePerHour)
+                        .isFree(isFree)
+                        .build();
 
         session = sessionRepository.save(session);
 
-        machineRepository.updateStatusAndSession(machine.getId(), MachineStatusEnum.IN_USE, session.getId());
+        machineRepository.updateStatusAndSession(
+                machine.getId(), MachineStatusEnum.IN_USE, session.getId());
 
         if (!isFree) {
             // chargeMinimumFee cũng set lastBilledAt = startedAt + SESSION_MINIMUM_MINUTES
             sessionBillingService.chargeMinimumFee(request.getUserId(), session.getId());
         }
 
-        log.info("Session started: user={}, machine={}, session={}, price={}",
-                request.getUserId(), request.getMachineId(), session.getId(), pricePerHour);
+        log.info(
+                "Session started: user={}, machine={}, session={}, price={}",
+                request.getUserId(),
+                request.getMachineId(),
+                session.getId(),
+                pricePerHour);
 
         return sessionMapper.toResponse(session);
     }
@@ -131,8 +149,10 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional
     public SessionResponse endSession(Long sessionId, Long requestingUserId) {
-        TSessionEntity session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại"));
+        TSessionEntity session =
+                sessionRepository
+                        .findById(sessionId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại"));
 
         if (!session.getUserId().equals(requestingUserId)) {
             throw new AccessDeniedException("Không có quyền kết thúc phiên này");
@@ -144,8 +164,10 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional
     public SessionResponse forceEndSession(Long sessionId) {
-        TSessionEntity session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại"));
+        TSessionEntity session =
+                sessionRepository
+                        .findById(sessionId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại"));
 
         return doEndSession(session, SessionStatusEnum.FORCE_ENDED);
     }
@@ -165,10 +187,10 @@ public class SessionServiceImpl implements SessionService {
                         session.getId(),
                         session.getLastBilledAt(),
                         now,
-                        session.getPricePerHourSnapshot()
-                );
+                        session.getPricePerHourSnapshot());
             } catch (Exception e) {
-                log.warn("Final billing failed for session {}: {}", session.getId(), e.getMessage());
+                log.warn(
+                        "Final billing failed for session {}: {}", session.getId(), e.getMessage());
             }
         }
 
@@ -178,10 +200,14 @@ public class SessionServiceImpl implements SessionService {
         session.setStatus(endStatus);
         sessionRepository.save(session);
 
-        machineRepository.updateStatusAndSession(session.getMachineId(), MachineStatusEnum.AVAILABLE, null);
+        machineRepository.updateStatusAndSession(
+                session.getMachineId(), MachineStatusEnum.AVAILABLE, null);
 
-        log.info("Session ended: session={}, status={}, duration={}s",
-                session.getId(), endStatus, durationSeconds);
+        log.info(
+                "Session ended: session={}, status={}, duration={}s",
+                session.getId(),
+                endStatus,
+                durationSeconds);
 
         return sessionMapper.toResponse(session);
     }
@@ -189,15 +215,18 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional(readOnly = true)
     public SessionResponse findById(Long sessionId) {
-        return sessionMapper.toResponse(sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại")));
+        return sessionMapper.toResponse(
+                sessionRepository
+                        .findById(sessionId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại")));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<SessionResponse> findByUserId(Long userId) {
-        return sessionRepository.findByUserIdOrderByCreatedAtDesc(userId)
-                .stream().map(sessionMapper::toResponse).toList();
+        return sessionRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(sessionMapper::toResponse)
+                .toList();
     }
 
     @Override
@@ -217,7 +246,8 @@ public class SessionServiceImpl implements SessionService {
             return;
         }
         if (!session.getUserId().equals(userId)) {
-            throw new org.springframework.security.access.AccessDeniedException("Không có quyền heartbeat session này");
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Không có quyền heartbeat session này");
         }
         sessionRepository.updateLastHeartbeatAt(sessionId, LocalDateTime.now(ZoneOffset.UTC));
     }
@@ -225,22 +255,27 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional
     public void cleanUpStaleSessions() {
-        LocalDateTime staleThreshold = LocalDateTime.now(ZoneOffset.UTC)
-                .minusMinutes(AppConstant.SESSION_STALE_MINUTES);
-        LocalDateTime maxDurationThreshold = LocalDateTime.now(ZoneOffset.UTC)
-                .minusHours(AppConstant.SESSION_MAX_DURATION_HOURS);
+        LocalDateTime staleThreshold =
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(AppConstant.SESSION_STALE_MINUTES);
+        LocalDateTime maxDurationThreshold =
+                LocalDateTime.now(ZoneOffset.UTC)
+                        .minusHours(AppConstant.SESSION_MAX_DURATION_HOURS);
 
-        List<TSessionEntity> staleSessions = sessionRepository
-                .findStaleActiveSessions(staleThreshold, maxDurationThreshold);
+        List<TSessionEntity> staleSessions =
+                sessionRepository.findStaleActiveSessions(staleThreshold, maxDurationThreshold);
 
         for (TSessionEntity session : staleSessions) {
             try {
-                log.warn("Auto-ending stale session: id={}, user={}, startedAt={}, lastHeartbeat={}",
-                        session.getId(), session.getUserId(),
-                        session.getStartedAt(), session.getLastHeartbeatAt());
+                log.warn(
+                        "Auto-ending stale session: id={}, user={}, startedAt={}, lastHeartbeat={}",
+                        session.getId(),
+                        session.getUserId(),
+                        session.getStartedAt(),
+                        session.getLastHeartbeatAt());
                 doEndSession(session, SessionStatusEnum.FORCE_ENDED);
             } catch (Exception e) {
-                log.error("Failed to auto-end stale session {}: {}", session.getId(), e.getMessage());
+                log.error(
+                        "Failed to auto-end stale session {}: {}", session.getId(), e.getMessage());
             }
         }
     }
@@ -251,23 +286,31 @@ public class SessionServiceImpl implements SessionService {
         List<TSessionEntity> sessions = sessionRepository.findAllActiveSessions();
         if (sessions.isEmpty()) return List.of();
 
-        Set<Long> userIds = sessions.stream().map(TSessionEntity::getUserId).collect(Collectors.toSet());
-        Map<Long, TUserEntity> userMap = userRepository.findAllById(userIds)
-                .stream().collect(Collectors.toMap(TUserEntity::getId, u -> u));
+        Set<Long> userIds =
+                sessions.stream().map(TSessionEntity::getUserId).collect(Collectors.toSet());
+        Map<Long, TUserEntity> userMap =
+                userRepository.findAllById(userIds).stream()
+                        .collect(Collectors.toMap(TUserEntity::getId, u -> u));
 
-        return sessions.stream().map(s -> {
-            TUserEntity user = userMap.get(s.getUserId());
-            return ActiveSessionWithUserResponse.builder()
-                    .sessionId(s.getId())
-                    .machineId(s.getMachineId())
-                    .userId(s.getUserId())
-                    .phoneNumber(user != null ? user.getPhoneNumber() : "")
-                    .fullName(user != null ? user.getFullName() : null)
-                    .startedAt(s.getStartedAt())
-                    .pricePerHourSnapshot(s.getPricePerHourSnapshot())
-                    .balance(user != null ? user.getBalance() : java.math.BigDecimal.ZERO)
-                    .isFree(s.getIsFree())
-                    .build();
-        }).toList();
+        return sessions.stream()
+                .map(
+                        s -> {
+                            TUserEntity user = userMap.get(s.getUserId());
+                            return ActiveSessionWithUserResponse.builder()
+                                    .sessionId(s.getId())
+                                    .machineId(s.getMachineId())
+                                    .userId(s.getUserId())
+                                    .phoneNumber(user != null ? user.getPhoneNumber() : "")
+                                    .fullName(user != null ? user.getFullName() : null)
+                                    .startedAt(s.getStartedAt())
+                                    .pricePerHourSnapshot(s.getPricePerHourSnapshot())
+                                    .balance(
+                                            user != null
+                                                    ? user.getBalance()
+                                                    : java.math.BigDecimal.ZERO)
+                                    .isFree(s.getIsFree())
+                                    .build();
+                        })
+                .toList();
     }
 }

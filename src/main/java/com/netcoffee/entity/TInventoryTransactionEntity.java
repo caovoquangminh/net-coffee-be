@@ -2,23 +2,29 @@ package com.netcoffee.entity;
 
 import com.netcoffee.enumtype.InventoryTransactionTypeEnum;
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import lombok.*;
 
 @Entity
-@Table(name = "inventory_transactions", indexes = {
-        @Index(name = "idx_inv_tx_item_id", columnList = "inventory_item_id"),
-        @Index(name = "idx_inv_tx_type", columnList = "type"),
-        @Index(name = "idx_inv_tx_created_at", columnList = "created_at")
-})
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Table(
+        name = "inventory_transactions",
+        indexes = {
+            @Index(name = "idx_inv_tx_item_id", columnList = "inventory_item_id"),
+            @Index(name = "idx_inv_tx_type", columnList = "type"),
+            @Index(name = "idx_inv_tx_created_at", columnList = "created_at")
+        })
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class TInventoryTransactionEntity {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "inventory_item_id", nullable = false)

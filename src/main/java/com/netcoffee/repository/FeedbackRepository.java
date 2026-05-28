@@ -7,8 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface FeedbackRepository extends JpaRepository<TFeedbackEntity, Long>
-{
+public interface FeedbackRepository extends JpaRepository<TFeedbackEntity, Long> {
 
     Page<TFeedbackEntity> findByMachineIdOrderByCreatedAtDesc(Long machineId, Pageable pageable);
 

@@ -3,7 +3,6 @@ package com.netcoffee.service;
 import com.netcoffee.dto.request.StartSessionRequest;
 import com.netcoffee.dto.response.ActiveSessionWithUserResponse;
 import com.netcoffee.dto.response.SessionResponse;
-
 import java.util.List;
 
 public interface SessionService {
