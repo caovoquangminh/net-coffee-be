@@ -1,0 +1,40 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: netcoffee
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/netcoffee}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  vietqr:
+    bank-bin: ${VIETQR_BANK_BIN}
+    bank-name: ${VIETQR_BANK_NAME}
+    account-number: ${VIETQR_ACCOUNT_NUMBER}
+    account-name: ${VIETQR_ACCOUNT_NAME}
