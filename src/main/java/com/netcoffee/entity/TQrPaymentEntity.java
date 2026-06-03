@@ -1,10 +1,10 @@
 package com.netcoffee.entity;
 
+import com.netcoffee.constant.AppConstant;
 import com.netcoffee.enumtype.QrPaymentStatusEnum;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import lombok.*;
 
 @Entity
@@ -62,7 +62,7 @@ public class TQrPaymentEntity {
     @PrePersist
     protected void onCreate() {
         // Dùng UTC để đồng bộ với DB config time_zone: UTC
-        LocalDateTime nowUtc = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime nowUtc = LocalDateTime.now(AppConstant.VN_ZONE);
         createdAt = nowUtc;
         if (expiredAt == null) {
             // QR hết hạn sau 5 phút

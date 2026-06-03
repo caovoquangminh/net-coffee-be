@@ -1,10 +1,13 @@
 package com.netcoffee.constant;
 
 import java.math.BigDecimal;
+import java.time.ZoneId;
 
 public final class AppConstant {
 
     private AppConstant() {}
+
+    public static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     // QR Payment
     public static final int QR_EXPIRY_MINUTES = 5;

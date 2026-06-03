@@ -24,7 +24,6 @@ import com.netcoffee.service.UserService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
@@ -106,7 +105,8 @@ public class SessionServiceImpl implements SessionService {
 
         BigDecimal pricePerHour =
                 pricingPlanRepository
-                        .findApplicablePlan(machine.getRoomZone(), LocalTime.now(ZoneOffset.UTC))
+                        .findApplicablePlan(
+                                machine.getRoomZone(), LocalTime.now(AppConstant.VN_ZONE))
                         .map(TPricingPlanEntity::getPricePerHour)
                         .orElse(AppConstant.SESSION_PRICE_PER_HOUR);
 
@@ -177,7 +177,7 @@ public class SessionServiceImpl implements SessionService {
             throw new IllegalStateException("Session không đang active");
         }
 
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
 
         // Kết toán phần lẻ chưa bill trước khi đóng session (bỏ qua nếu session miễn phí)
         if (!Boolean.TRUE.equals(session.getIsFree())) {
@@ -249,16 +249,17 @@ public class SessionServiceImpl implements SessionService {
             throw new org.springframework.security.access.AccessDeniedException(
                     "Không có quyền heartbeat session này");
         }
-        sessionRepository.updateLastHeartbeatAt(sessionId, LocalDateTime.now(ZoneOffset.UTC));
+        sessionRepository.updateLastHeartbeatAt(sessionId, LocalDateTime.now(AppConstant.VN_ZONE));
     }
 
     @Override
     @Transactional
     public void cleanUpStaleSessions() {
         LocalDateTime staleThreshold =
-                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(AppConstant.SESSION_STALE_MINUTES);
+                LocalDateTime.now(AppConstant.VN_ZONE)
+                        .minusMinutes(AppConstant.SESSION_STALE_MINUTES);
         LocalDateTime maxDurationThreshold =
-                LocalDateTime.now(ZoneOffset.UTC)
+                LocalDateTime.now(AppConstant.VN_ZONE)
                         .minusHours(AppConstant.SESSION_MAX_DURATION_HOURS);
 
         List<TSessionEntity> staleSessions =

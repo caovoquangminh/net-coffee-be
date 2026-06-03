@@ -1,8 +1,8 @@
 package com.netcoffee.entity;
 
+import com.netcoffee.constant.AppConstant;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import lombok.*;
 
 @Entity
@@ -32,6 +32,6 @@ public class TAnnouncementEntity {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        createdAt = LocalDateTime.now(AppConstant.VN_ZONE);
     }
 }

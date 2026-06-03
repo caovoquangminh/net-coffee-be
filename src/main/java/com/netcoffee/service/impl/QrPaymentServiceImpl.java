@@ -1,6 +1,7 @@
 package com.netcoffee.service.impl;
 
 import com.netcoffee.config.VietQrProperties;
+import com.netcoffee.constant.AppConstant;
 import com.netcoffee.dto.request.TopUpRequest;
 import com.netcoffee.dto.request.WebhookPaymentRequest;
 import com.netcoffee.dto.response.QrPaymentResponse;
@@ -20,7 +21,6 @@ import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -146,7 +146,7 @@ public class QrPaymentServiceImpl implements QrPaymentService {
             return;
         }
 
-        if (qrPayment.getExpiredAt().isBefore(LocalDateTime.now(ZoneOffset.UTC))) {
+        if (qrPayment.getExpiredAt().isBefore(LocalDateTime.now(AppConstant.VN_ZONE))) {
             qrPayment.setStatus(QrPaymentStatusEnum.EXPIRED);
             qrPaymentRepository.save(qrPayment);
             log.warn("QR payment {} expired", referenceCode);
@@ -155,7 +155,7 @@ public class QrPaymentServiceImpl implements QrPaymentService {
 
         qrPayment.setStatus(QrPaymentStatusEnum.MATCHED);
         qrPayment.setAmountReceived(request.getTransferAmount());
-        qrPayment.setMatchedAt(LocalDateTime.now(ZoneOffset.UTC));
+        qrPayment.setMatchedAt(LocalDateTime.now(AppConstant.VN_ZONE));
         qrPaymentRepository.save(qrPayment);
 
         Long userId = qrPayment.getUserId();
@@ -177,7 +177,7 @@ public class QrPaymentServiceImpl implements QrPaymentService {
     @Scheduled(fixedRate = 60_000)
     @Transactional
     public void expireOldQrPayments() {
-        int count = qrPaymentRepository.expireOldQrPayments(LocalDateTime.now(ZoneOffset.UTC));
+        int count = qrPaymentRepository.expireOldQrPayments(LocalDateTime.now(AppConstant.VN_ZONE));
         if (count > 0) {
             log.info("Expired {} QR payments", count);
         }

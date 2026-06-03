@@ -1,10 +1,10 @@
 package com.netcoffee.entity;
 
+import com.netcoffee.constant.AppConstant;
 import com.netcoffee.enumtype.SessionStatusEnum;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import lombok.*;
 
 @Entity
@@ -87,9 +87,9 @@ public class TSessionEntity {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        createdAt = LocalDateTime.now(AppConstant.VN_ZONE);
         if (startedAt == null) {
-            startedAt = LocalDateTime.now(ZoneOffset.UTC);
+            startedAt = LocalDateTime.now(AppConstant.VN_ZONE);
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.netcoffee.service.impl;
 
 import com.netcoffee.config.VietQrProperties;
+import com.netcoffee.constant.AppConstant;
 import com.netcoffee.dto.request.CreateOrderRequest;
 import com.netcoffee.dto.response.OrderResponse;
 import com.netcoffee.entity.*;
@@ -16,7 +17,6 @@ import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -155,7 +155,7 @@ public class FoodOrderServiceImpl implements FoodOrderService {
         // Ghi nhận ai xác nhận (lần đầu)
         if (confirmedByUserId != null && order.getConfirmedBy() == null) {
             order.setConfirmedBy(confirmedByUserId);
-            order.setConfirmedAt(LocalDateTime.now(ZoneOffset.UTC));
+            order.setConfirmedAt(LocalDateTime.now(AppConstant.VN_ZONE));
         }
 
         order = foodOrderRepository.save(order);
@@ -207,7 +207,7 @@ public class FoodOrderServiceImpl implements FoodOrderService {
         order.setCancelReason(reason);
         if (order.getConfirmedBy() == null) {
             order.setConfirmedBy(cancelledByUserId);
-            order.setConfirmedAt(LocalDateTime.now(ZoneOffset.UTC));
+            order.setConfirmedAt(LocalDateTime.now(AppConstant.VN_ZONE));
         }
 
         order = foodOrderRepository.save(order);

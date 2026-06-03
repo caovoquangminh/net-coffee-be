@@ -1,11 +1,11 @@
 package com.netcoffee.entity;
 
+import com.netcoffee.constant.AppConstant;
 import com.netcoffee.enumtype.InventoryTransactionTypeEnum;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import lombok.*;
 
 @Entity
@@ -60,6 +60,6 @@ public class TInventoryTransactionEntity {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now(ZoneOffset.UTC);
+        createdAt = LocalDateTime.now(AppConstant.VN_ZONE);
     }
 }

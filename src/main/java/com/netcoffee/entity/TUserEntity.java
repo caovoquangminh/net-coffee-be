@@ -1,10 +1,10 @@
 package com.netcoffee.entity;
 
+import com.netcoffee.constant.AppConstant;
 import com.netcoffee.enumtype.UserRoleEnum;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import lombok.*;
 
 @Entity
@@ -65,12 +65,12 @@ public class TUserEntity {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now(ZoneOffset.UTC);
-        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
+        createdAt = LocalDateTime.now(AppConstant.VN_ZONE);
+        updatedAt = LocalDateTime.now(AppConstant.VN_ZONE);
     }
 
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
+        updatedAt = LocalDateTime.now(AppConstant.VN_ZONE);
     }
 }

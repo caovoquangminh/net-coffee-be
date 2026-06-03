@@ -1,5 +1,6 @@
 package com.netcoffee.service.impl;
 
+import com.netcoffee.constant.AppConstant;
 import com.netcoffee.dto.response.DashboardOwnerResponse;
 import com.netcoffee.dto.response.DashboardOwnerResponse.AccountMonitoringStats;
 import com.netcoffee.dto.response.DashboardOwnerResponse.AccountMonitoringStats.AnomalousAccount;
@@ -28,7 +29,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +55,7 @@ public class DashboardOwnerServiceImpl implements DashboardOwnerService {
     public DashboardOwnerResponse getOwnerStats(LocalDate date) {
         LocalDateTime from = date.atStartOfDay();
         LocalDateTime to = date.plusDays(1).atStartOfDay();
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
 
         // ── Revenue ────────────────────────────────────────────────────────────
         BigDecimal netRevenue =

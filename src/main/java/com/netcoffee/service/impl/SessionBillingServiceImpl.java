@@ -13,7 +13,6 @@ import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
@@ -136,7 +135,7 @@ public class SessionBillingServiceImpl implements SessionBillingService {
             return;
         }
 
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
 
         // Điểm bắt đầu charge: sau khi phí minimum đã cover
         LocalDateTime lastBilledAt =

@@ -21,7 +21,6 @@ import com.netcoffee.service.AdminService;
 import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -75,7 +74,7 @@ public class AdminServiceImpl implements AdminService {
     public Page<AdminTransactionResponse> getTransactions(int page, int size) {
         size = Math.min(size, AppConstant.MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(page, size);
-        LocalDateTime from = LocalDateTime.now(ZoneOffset.UTC).minusDays(30);
+        LocalDateTime from = LocalDateTime.now(AppConstant.VN_ZONE).minusDays(30);
 
         Page<TTransactionEntity> txPage = transactionRepository.findAllSince(from, pageable);
 
@@ -136,7 +135,7 @@ public class AdminServiceImpl implements AdminService {
     public Page<SessionHistoryResponse> getSessionHistory(int page, int size) {
         size = Math.min(size, AppConstant.MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(page, size);
-        LocalDateTime from = LocalDateTime.now(ZoneOffset.UTC).minusDays(30);
+        LocalDateTime from = LocalDateTime.now(AppConstant.VN_ZONE).minusDays(30);
 
         Page<TSessionEntity> sessionPage = sessionRepository.findEndedSince(from, pageable);
 

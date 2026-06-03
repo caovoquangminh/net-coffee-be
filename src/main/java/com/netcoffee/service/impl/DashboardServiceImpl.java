@@ -1,5 +1,6 @@
 package com.netcoffee.service.impl;
 
+import com.netcoffee.constant.AppConstant;
 import com.netcoffee.dto.response.DashboardStatsResponse;
 import com.netcoffee.enumtype.MachineStatusEnum;
 import com.netcoffee.enumtype.OrderStatusEnum;
@@ -11,7 +12,6 @@ import com.netcoffee.service.DashboardService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +27,7 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     @Transactional(readOnly = true)
     public DashboardStatsResponse getStats() {
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = LocalDate.now(AppConstant.VN_ZONE);
         LocalDateTime todayStart = today.atStartOfDay();
         LocalDateTime todayEnd = todayStart.plusDays(1);
         LocalDateTime monthStart = today.withDayOfMonth(1).atStartOfDay();
