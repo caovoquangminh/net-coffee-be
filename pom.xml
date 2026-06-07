@@ -21,6 +21,7 @@
 		<jjwt.version>0.12.6</jjwt.version>
 		<flyway.version>10.12.0</flyway.version>
 		<poi.version>5.2.5</poi.version>
+		<spring.profiles.active>local</spring.profiles.active>
 	</properties>
 
 	<dependencies>
@@ -145,6 +146,9 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
 					<mainClass>com.netcoffee.NetcoffeeApplication</mainClass>
+					<profiles>
+						<profile>${spring.profiles.active}</profile>
+					</profiles>
 					<excludes>
 						<exclude>
 							<groupId>org.projectlombok</groupId>

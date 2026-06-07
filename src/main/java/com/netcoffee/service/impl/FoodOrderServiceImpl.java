@@ -8,6 +8,7 @@ import com.netcoffee.entity.*;
 import com.netcoffee.enumtype.FoodOrderPaymentEnum;
 import com.netcoffee.enumtype.InventoryTransactionTypeEnum;
 import com.netcoffee.enumtype.OrderStatusEnum;
+import com.netcoffee.enumtype.SessionStatusEnum;
 import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.repository.*;
 import com.netcoffee.repository.MenuItemRepository;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +38,7 @@ public class FoodOrderServiceImpl implements FoodOrderService {
     private final InventoryItemRepository inventoryItemRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final UserRepository userRepository;
+    private final SessionRepository sessionRepository;
     private final MenuItemService menuItemService;
     private final MenuItemRepository menuItemRepository;
     private final SimpMessagingTemplate messagingTemplate;
@@ -44,6 +47,17 @@ public class FoodOrderServiceImpl implements FoodOrderService {
     @Override
     @Transactional
     public OrderResponse createOrder(Long userId, CreateOrderRequest request) {
+        TSessionEntity session =
+                sessionRepository
+                        .findById(request.getSessionId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại"));
+        if (session.getStatus() != SessionStatusEnum.ACTIVE) {
+            throw new IllegalStateException("Phiên làm việc đã kết thúc, không thể đặt món");
+        }
+        if (!session.getUserId().equals(userId)) {
+            throw new AccessDeniedException("Không thể đặt món cho phiên của người khác");
+        }
+
         List<TFoodOrderItemEntity> items = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
 

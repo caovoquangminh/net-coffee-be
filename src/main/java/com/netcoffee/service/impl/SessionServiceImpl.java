@@ -22,6 +22,7 @@ import com.netcoffee.service.SessionService;
 import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
@@ -101,6 +102,11 @@ public class SessionServiceImpl implements SessionService {
         if (sessionRepository.existsByMachineIdAndStatus(
                 request.getMachineId(), SessionStatusEnum.ACTIVE)) {
             throw new IllegalStateException("Máy đang có session đang chạy");
+        }
+
+        if (sessionRepository.existsByUserIdAndStatus(
+                request.getUserId(), SessionStatusEnum.ACTIVE)) {
+            throw new IllegalStateException("Tài khoản đã có phiên đang hoạt động trên máy khác");
         }
 
         BigDecimal pricePerHour =
@@ -198,6 +204,16 @@ public class SessionServiceImpl implements SessionService {
         session.setEndedAt(now);
         session.setDurationSeconds(durationSeconds);
         session.setStatus(endStatus);
+
+        if (Boolean.TRUE.equals(session.getIsFree())) {
+            session.setTotalCost(BigDecimal.ZERO);
+        } else {
+            session.setTotalCost(
+                    session.getPricePerHourSnapshot()
+                            .multiply(BigDecimal.valueOf(durationSeconds))
+                            .divide(BigDecimal.valueOf(3600), 2, RoundingMode.HALF_UP));
+        }
+
         sessionRepository.save(session);
 
         machineRepository.updateStatusAndSession(
@@ -258,12 +274,9 @@ public class SessionServiceImpl implements SessionService {
         LocalDateTime staleThreshold =
                 LocalDateTime.now(AppConstant.VN_ZONE)
                         .minusMinutes(AppConstant.SESSION_STALE_MINUTES);
-        LocalDateTime maxDurationThreshold =
-                LocalDateTime.now(AppConstant.VN_ZONE)
-                        .minusHours(AppConstant.SESSION_MAX_DURATION_HOURS);
 
         List<TSessionEntity> staleSessions =
-                sessionRepository.findStaleActiveSessions(staleThreshold, maxDurationThreshold);
+                sessionRepository.findStaleActiveSessions(staleThreshold);
 
         for (TSessionEntity session : staleSessions) {
             try {

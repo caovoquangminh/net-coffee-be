@@ -153,6 +153,9 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         if (user.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
             log.info("Session {} out of balance, force ending", session.getId());
             sessionService.forceEndSession(session.getId());
+            messagingTemplate.convertAndSend(
+                    "/topic/session/" + session.getId() + "/ended",
+                    Map.of("sessionId", session.getId(), "reason", "BALANCE_EXHAUSTED"));
             return;
         }
 
@@ -188,6 +191,9 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         if (deductAmount.compareTo(user.getBalance()) >= 0) {
             log.info("Session {} balance exhausted after billing, force ending", session.getId());
             sessionService.forceEndSession(session.getId());
+            messagingTemplate.convertAndSend(
+                    "/topic/session/" + session.getId() + "/ended",
+                    Map.of("sessionId", session.getId(), "reason", "BALANCE_EXHAUSTED"));
         }
     }
 

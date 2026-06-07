@@ -38,16 +38,17 @@ public interface SessionRepository extends JpaRepository<TSessionEntity, Long> {
 
     /**
      * Tìm các session ACTIVE bị coi là orphaned: - Đã nhận heartbeat nhưng heartbeat cuối cùng >
-     * staleThreshold (client đã chết) - Chưa nhận heartbeat nào và startedAt > maxDurationThreshold
-     * (safety net cho phiên cũ)
+     * staleThreshold (client đã chết) - Chưa nhận heartbeat nào và startedAt > staleThreshold (máy
+     * crash trước heartbeat đầu tiên — dùng cùng ngưỡng 30 phút, không phải 12 giờ)
      */
     @Query(
             "SELECT s FROM TSessionEntity s WHERE s.status = 'ACTIVE' AND "
                     + "((s.lastHeartbeatAt IS NOT NULL AND s.lastHeartbeatAt < :staleThreshold) OR "
-                    + "(s.lastHeartbeatAt IS NULL AND s.startedAt < :maxDurationThreshold))")
+                    + "(s.lastHeartbeatAt IS NULL AND s.startedAt < :staleThreshold))")
     List<TSessionEntity> findStaleActiveSessions(
-            @Param("staleThreshold") LocalDateTime staleThreshold,
-            @Param("maxDurationThreshold") LocalDateTime maxDurationThreshold);
+            @Param("staleThreshold") LocalDateTime staleThreshold);
+
+    boolean existsByUserIdAndStatus(Long userId, SessionStatusEnum status);
 
     @Query(
             "SELECT s FROM TSessionEntity s WHERE s.status != 'ACTIVE' AND s.createdAt >= :from ORDER BY s.createdAt DESC")
