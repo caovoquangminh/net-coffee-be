@@ -51,7 +51,6 @@ public class QrPaymentServiceImpl implements QrPaymentService {
     @Override
     @Transactional
     public QrPaymentResponse generateQrByPhone(String phoneNumber, TopUpRequest request) {
-        // Validate SĐT tồn tại + không bị khóa
         TUserEntity user =
                 userRepository
                         .findByPhoneNumber(phoneNumber)
@@ -67,7 +66,6 @@ public class QrPaymentServiceImpl implements QrPaymentService {
         return buildQrPayment(user.getId(), request);
     }
 
-    /** Logic tạo QR dùng chung cho cả 2 method generate */
     private QrPaymentResponse buildQrPayment(Long userId, TopUpRequest request) {
         String referenceCode = ReferenceCodeUtil.generate();
 

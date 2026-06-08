@@ -57,14 +57,12 @@ public class DashboardOwnerServiceImpl implements DashboardOwnerService {
         LocalDateTime to = date.plusDays(1).atStartOfDay();
         LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
 
-        // ── Revenue ────────────────────────────────────────────────────────────
         BigDecimal netRevenue =
                 transactionRepository.sumByTypeBetween(TransactionTypeEnum.DEDUCT, from, to);
         BigDecimal serviceRevenue =
                 foodOrderRepository.sumByStatusBetween(OrderStatusEnum.DONE, from, to);
         BigDecimal totalRevenue = netRevenue.add(serviceRevenue);
 
-        // ── Cash Flow ──────────────────────────────────────────────────────────
         BigDecimal topUpCash =
                 transactionRepository.sumByTypeAndMethodBetween(
                         TransactionTypeEnum.TOPUP, PaymentMethodEnum.CASH, from, to);
@@ -91,7 +89,6 @@ public class DashboardOwnerServiceImpl implements DashboardOwnerService {
                         .estimatedCashIn(estimatedCashIn)
                         .build();
 
-        // ── Customer Debt ──────────────────────────────────────────────────────
         BigDecimal currentBalance = userRepository.sumBalanceByRole(UserRoleEnum.CUSTOMER);
         BigDecimal todayConsumed = netRevenue.add(serviceRevenue);
         BigDecimal startOfDayBalance =
@@ -105,7 +102,6 @@ public class DashboardOwnerServiceImpl implements DashboardOwnerService {
                         .currentBalance(currentBalance)
                         .build();
 
-        // ── Account Monitoring ─────────────────────────────────────────────────
         List<TUserEntity> top20 =
                 userRepository.findTop20ByRoleOrderByBalanceDesc(UserRoleEnum.CUSTOMER);
         List<TopAccount> topAccounts =
@@ -142,7 +138,6 @@ public class DashboardOwnerServiceImpl implements DashboardOwnerService {
                         .anomalousAccounts(anomalousAccounts)
                         .build();
 
-        // ── Staff Stats ────────────────────────────────────────────────────────
         List<Object[]> staffRows = transactionRepository.staffTopUpStatsBetween(from, to);
         List<Long> staffIds =
                 staffRows.stream()
@@ -168,7 +163,6 @@ public class DashboardOwnerServiceImpl implements DashboardOwnerService {
                             .build());
         }
 
-        // ── Machine Stats ──────────────────────────────────────────────────────
         List<TMachineEntity> machines = machineRepository.findAll();
         int total = machines.size();
         int inUse =
@@ -206,7 +200,6 @@ public class DashboardOwnerServiceImpl implements DashboardOwnerService {
                         .totalSessionSeconds((long) sessionSeconds)
                         .build();
 
-        // ── Loss Detection ─────────────────────────────────────────────────────
         BigDecimal allTopUps = transactionRepository.sumAllByType(TransactionTypeEnum.TOPUP);
         BigDecimal allDeductions = transactionRepository.sumAllByType(TransactionTypeEnum.DEDUCT);
         BigDecimal allRefunds = transactionRepository.sumAllByType(TransactionTypeEnum.REFUND);

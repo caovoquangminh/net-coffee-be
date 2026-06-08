@@ -8,7 +8,9 @@ import com.netcoffee.mapper.MachineMapper;
 import com.netcoffee.repository.MachineRepository;
 import com.netcoffee.service.MachineService;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,7 @@ public class MachineServiceImpl implements MachineService {
 
     private final MachineRepository machineRepository;
     private final MachineMapper machineMapper;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional(readOnly = true)
@@ -54,5 +57,22 @@ public class MachineServiceImpl implements MachineService {
         if (updated == 0) {
             throw new ResourceNotFoundException("Máy không tồn tại: " + machineId);
         }
+    }
+
+    @Override
+    public void remoteUnlock(String machineCode) {
+        TMachineEntity machine =
+                machineRepository
+                        .findByMachineCode(machineCode)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Máy không tồn tại: " + machineCode));
+        if (machine.getStatus() == MachineStatusEnum.IN_USE) {
+            throw new IllegalStateException(
+                    "Máy " + machineCode + " đang được sử dụng, không thể mở khóa từ xa");
+        }
+        messagingTemplate.convertAndSend(
+                "/topic/machine/" + machineCode + "/control", Map.of("action", "UNLOCK"));
     }
 }

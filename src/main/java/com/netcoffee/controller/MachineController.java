@@ -8,6 +8,7 @@ import com.netcoffee.service.MachineService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -31,5 +32,12 @@ public class MachineController {
     public ResponseEntity<ApiResponse<List<MachineResponse>>> getByStatus(
             @PathVariable MachineStatusEnum status) {
         return ResponseEntity.ok(ApiResponse.ok(machineService.findByStatus(status)));
+    }
+
+    @PostMapping("/{machineCode}/remote-unlock")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ResponseEntity<ApiResponse<Void>> remoteUnlock(@PathVariable String machineCode) {
+        machineService.remoteUnlock(machineCode);
+        return ResponseEntity.ok(ApiResponse.ok(null));
     }
 }

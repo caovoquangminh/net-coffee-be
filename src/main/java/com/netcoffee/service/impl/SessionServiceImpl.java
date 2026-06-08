@@ -20,8 +20,8 @@ import com.netcoffee.repository.UserRepository;
 import com.netcoffee.service.SessionBillingService;
 import com.netcoffee.service.SessionService;
 import com.netcoffee.service.TransactionService;
-import com.netcoffee.service.UserService;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
@@ -47,7 +47,6 @@ public class SessionServiceImpl implements SessionService {
     private final MachineRepository machineRepository;
     private final PricingPlanRepository pricingPlanRepository;
     private final UserRepository userRepository;
-    private final UserService userService;
     private final TransactionService transactionService;
     private final SessionMapper sessionMapper;
 
@@ -88,7 +87,7 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional
     public SessionResponse startSession(StartSessionRequest request) {
-        // Pessimistic lock — ngăn 2 request đồng thời khởi session trên cùng 1 máy
+        // Pessimistic lock — prevents concurrent session starts on the same machine
         TMachineEntity machine =
                 machineRepository
                         .findByIdForUpdate(request.getMachineId())
@@ -103,6 +102,11 @@ public class SessionServiceImpl implements SessionService {
             throw new IllegalStateException("Máy đang có session đang chạy");
         }
 
+        if (sessionRepository.existsByUserIdAndStatus(
+                request.getUserId(), SessionStatusEnum.ACTIVE)) {
+            throw new IllegalStateException("Tài khoản đã có phiên đang hoạt động trên máy khác");
+        }
+
         BigDecimal pricePerHour =
                 pricingPlanRepository
                         .findApplicablePlan(
@@ -115,7 +119,7 @@ public class SessionServiceImpl implements SessionService {
                         .findById(request.getUserId())
                         .orElseThrow(
                                 () -> new ResourceNotFoundException("Người dùng không tồn tại"));
-        boolean isFree = user.getRole() != null && user.getRole().name().equals("ADMIN");
+        boolean isFree = user.getRole() == com.netcoffee.enumtype.UserRoleEnum.ADMIN;
 
         TSessionEntity session =
                 TSessionEntity.builder()
@@ -132,7 +136,7 @@ public class SessionServiceImpl implements SessionService {
                 machine.getId(), MachineStatusEnum.IN_USE, session.getId());
 
         if (!isFree) {
-            // chargeMinimumFee cũng set lastBilledAt = startedAt + SESSION_MINIMUM_MINUTES
+            // chargeMinimumFee also sets lastBilledAt = startedAt + SESSION_MINIMUM_MINUTES
             sessionBillingService.chargeMinimumFee(request.getUserId(), session.getId());
         }
 
@@ -179,7 +183,6 @@ public class SessionServiceImpl implements SessionService {
 
         LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
 
-        // Kết toán phần lẻ chưa bill trước khi đóng session (bỏ qua nếu session miễn phí)
         if (!Boolean.TRUE.equals(session.getIsFree())) {
             try {
                 sessionBillingService.chargeFinalBill(
@@ -198,16 +201,33 @@ public class SessionServiceImpl implements SessionService {
         session.setEndedAt(now);
         session.setDurationSeconds(durationSeconds);
         session.setStatus(endStatus);
+
+        if (Boolean.TRUE.equals(session.getIsFree())) {
+            session.setTotalCost(BigDecimal.ZERO);
+        } else {
+            session.setTotalCost(
+                    session.getPricePerHourSnapshot()
+                            .multiply(BigDecimal.valueOf(durationSeconds))
+                            .divide(BigDecimal.valueOf(3600), 2, RoundingMode.HALF_UP));
+        }
+
+        // Use actual transaction sum: when balance ran out mid-session, charged < price × duration
+        if (!Boolean.TRUE.equals(session.getIsFree())) {
+            BigDecimal actualCharged = transactionService.sumDeductForSession(session.getId());
+            session.setTotalCost(actualCharged);
+        }
+
         sessionRepository.save(session);
 
         machineRepository.updateStatusAndSession(
                 session.getMachineId(), MachineStatusEnum.AVAILABLE, null);
 
         log.info(
-                "Session ended: session={}, status={}, duration={}s",
+                "Session ended: session={}, status={}, duration={}s, totalCost={}",
                 session.getId(),
                 endStatus,
-                durationSeconds);
+                durationSeconds,
+                session.getTotalCost());
 
         return sessionMapper.toResponse(session);
     }
@@ -227,6 +247,15 @@ public class SessionServiceImpl implements SessionService {
         return sessionRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(sessionMapper::toResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<SessionResponse> findByUserIdPaged(
+            Long userId, org.springframework.data.domain.Pageable pageable) {
+        return sessionRepository
+                .findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                .map(sessionMapper::toResponse);
     }
 
     @Override
@@ -258,12 +287,9 @@ public class SessionServiceImpl implements SessionService {
         LocalDateTime staleThreshold =
                 LocalDateTime.now(AppConstant.VN_ZONE)
                         .minusMinutes(AppConstant.SESSION_STALE_MINUTES);
-        LocalDateTime maxDurationThreshold =
-                LocalDateTime.now(AppConstant.VN_ZONE)
-                        .minusHours(AppConstant.SESSION_MAX_DURATION_HOURS);
 
         List<TSessionEntity> staleSessions =
-                sessionRepository.findStaleActiveSessions(staleThreshold, maxDurationThreshold);
+                sessionRepository.findStaleActiveSessions(staleThreshold);
 
         for (TSessionEntity session : staleSessions) {
             try {

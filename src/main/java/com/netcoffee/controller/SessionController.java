@@ -1,14 +1,18 @@
 package com.netcoffee.controller;
 
 import com.netcoffee.constant.ApiPaths;
+import com.netcoffee.constant.AppConstant;
 import com.netcoffee.dto.request.StartSessionRequest;
 import com.netcoffee.dto.response.ActiveSessionWithUserResponse;
 import com.netcoffee.dto.response.ApiResponse;
 import com.netcoffee.dto.response.SessionResponse;
+import com.netcoffee.enumtype.UserRoleEnum;
 import com.netcoffee.service.SessionService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -22,6 +26,8 @@ import org.springframework.web.bind.annotation.*;
 public class SessionController {
 
     private final SessionService sessionService;
+
+    private static final String ROLE_ADMIN = "ROLE_" + UserRoleEnum.ADMIN.name();
 
     @PostMapping("/start")
     public ResponseEntity<ApiResponse<SessionResponse>> startSession(
@@ -49,7 +55,7 @@ public class SessionController {
         Long userId = Long.parseLong(userDetails.getUsername());
         boolean isAdmin =
                 userDetails.getAuthorities().stream()
-                        .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                        .anyMatch(a -> a.getAuthority().equals(ROLE_ADMIN));
         if (!isAdmin) {
             SessionResponse existing = sessionService.findById(id);
             if (!existing.getUserId().equals(userId)) {
@@ -82,10 +88,16 @@ public class SessionController {
     }
 
     @GetMapping("/my")
-    public ResponseEntity<ApiResponse<List<SessionResponse>>> getMySessions(
-            @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<ApiResponse<Page<SessionResponse>>> getMySessions(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "" + AppConstant.DEFAULT_PAGE_SIZE) int size) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        return ResponseEntity.ok(ApiResponse.ok(sessionService.findByUserId(userId)));
+        int clampedSize = Math.min(size, AppConstant.MAX_PAGE_SIZE);
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        sessionService.findByUserIdPaged(
+                                userId, PageRequest.of(page, clampedSize))));
     }
 
     @GetMapping("/{id}")

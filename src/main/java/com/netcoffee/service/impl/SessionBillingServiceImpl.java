@@ -44,12 +44,8 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         this.sessionService = sessionService;
     }
 
-    // Self-injection để @Transactional(REQUIRES_NEW) trên processBillingNewTx được proxy intercept
+    // Self-injection: REQUIRES_NEW proxy needs self-call
     @Lazy @Autowired SessionBillingServiceImpl self;
-
-    // -------------------------------------------------------------------------
-    // chargeMinimumFee
-    // -------------------------------------------------------------------------
 
     @Override
     @Transactional
@@ -71,7 +67,6 @@ public class SessionBillingServiceImpl implements SessionBillingService {
                 sessionId,
                 "Phí mở máy (tối thiểu " + AppConstant.SESSION_MINIMUM_MINUTES + " phút)");
 
-        // Đánh dấu SESSION_MINIMUM_MINUTES đầu tiên đã được thanh toán trước
         sessionRepository
                 .findById(sessionId)
                 .ifPresent(
@@ -93,10 +88,6 @@ public class SessionBillingServiceImpl implements SessionBillingService {
                 AppConstant.SESSION_MINIMUM_CHARGE,
                 sessionId);
     }
-
-    // -------------------------------------------------------------------------
-    // billingTick — mỗi session chạy trong transaction riêng (REQUIRES_NEW)
-    // -------------------------------------------------------------------------
 
     @Override
     @Scheduled(fixedRate = AppConstant.SESSION_BILLING_INTERVAL_SECONDS * 1000L)
@@ -126,10 +117,6 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         processBilling(session);
     }
 
-    // -------------------------------------------------------------------------
-    // processBilling — trừ tiền theo giây thực từ lastBilledAt
-    // -------------------------------------------------------------------------
-
     void processBilling(TSessionEntity session) {
         if (Boolean.TRUE.equals(session.getIsFree())) {
             return;
@@ -137,13 +124,11 @@ public class SessionBillingServiceImpl implements SessionBillingService {
 
         LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
 
-        // Điểm bắt đầu charge: sau khi phí minimum đã cover
         LocalDateTime lastBilledAt =
                 session.getLastBilledAt() != null
                         ? session.getLastBilledAt()
                         : session.getStartedAt().plusMinutes(AppConstant.SESSION_MINIMUM_MINUTES);
 
-        // Chưa qua kỳ đã trả trước → bỏ qua
         if (!now.isAfter(lastBilledAt)) {
             return;
         }
@@ -153,6 +138,9 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         if (user.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
             log.info("Session {} out of balance, force ending", session.getId());
             sessionService.forceEndSession(session.getId());
+            messagingTemplate.convertAndSend(
+                    "/topic/session/" + session.getId() + "/ended",
+                    Map.of("sessionId", session.getId(), "reason", "BALANCE_EXHAUSTED"));
             return;
         }
 
@@ -164,7 +152,6 @@ public class SessionBillingServiceImpl implements SessionBillingService {
 
         userService.deduct(session.getUserId(), deductAmount);
 
-        // Cập nhật lastBilledAt = now trước khi record transaction
         sessionRepository.updateLastBilledAt(session.getId(), now);
 
         transactionService.recordDeduct(
@@ -183,17 +170,15 @@ public class SessionBillingServiceImpl implements SessionBillingService {
                 unbilledSeconds,
                 deductAmount);
 
-        // deductAmount = calcCharge.min(user.getBalance()) → nếu deductAmount >= balance
-        // thì toàn bộ balance vừa bị lấy hết. Không đọc lại entity (L1 cache sẽ stale).
+        // deductAmount was capped at balance: if equal, balance is now 0 without entity reload
         if (deductAmount.compareTo(user.getBalance()) >= 0) {
             log.info("Session {} balance exhausted after billing, force ending", session.getId());
             sessionService.forceEndSession(session.getId());
+            messagingTemplate.convertAndSend(
+                    "/topic/session/" + session.getId() + "/ended",
+                    Map.of("sessionId", session.getId(), "reason", "BALANCE_EXHAUSTED"));
         }
     }
-
-    // -------------------------------------------------------------------------
-    // chargeFinalBill — kết toán phần lẻ khi session kết thúc
-    // -------------------------------------------------------------------------
 
     @Override
     @Transactional
@@ -225,6 +210,9 @@ public class SessionBillingServiceImpl implements SessionBillingService {
         }
 
         userService.deduct(userId, deductAmount);
+
+        // Mark session as fully billed to prevent double-charge if billing tick fires concurrently
+        sessionRepository.updateLastBilledAt(sessionId, endedAt);
 
         transactionService.recordDeduct(
                 userId, deductAmount, sessionId, "Kết toán cuối phiên (" + unbilledSeconds + "s)");

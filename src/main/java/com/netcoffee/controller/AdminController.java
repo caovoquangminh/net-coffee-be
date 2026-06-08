@@ -5,6 +5,7 @@ import com.netcoffee.constant.AppConstant;
 import com.netcoffee.dto.request.AdminDeductRequest;
 import com.netcoffee.dto.request.CreateCustomerRequest;
 import com.netcoffee.dto.request.ResetPasswordRequest;
+import com.netcoffee.dto.request.UpdateStaffProfileRequest;
 import com.netcoffee.dto.request.UpdateUserRequest;
 import com.netcoffee.dto.response.*;
 import com.netcoffee.service.AdminService;
@@ -67,6 +68,25 @@ public class AdminController {
         return ResponseEntity.ok(
                 ApiResponse.ok(
                         "Cập nhật thành công", userManagementService.adminUpdateUser(id, request)));
+    }
+
+    @PutMapping("/users/{id}/profile")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<UserResponse>> updateStaffProfile(
+            @PathVariable Long id, @RequestBody UpdateStaffProfileRequest request) {
+        return ResponseEntity.ok(
+                ApiResponse.ok(
+                        "Cập nhật hồ sơ nhân viên thành công",
+                        userManagementService.updateStaffProfile(id, request)));
+    }
+
+    @DeleteMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deleteUser(
+            @PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
+        Long adminId = Long.parseLong(userDetails.getUsername());
+        userManagementService.softDeleteUser(id, adminId);
+        return ResponseEntity.ok(ApiResponse.ok("Xóa tài khoản thành công", null));
     }
 
     @PostMapping("/users/{id}/deduct")

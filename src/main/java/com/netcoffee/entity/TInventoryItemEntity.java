@@ -35,10 +35,6 @@ public class TInventoryItemEntity {
     @Builder.Default
     private BigDecimal minStock = BigDecimal.ZERO;
 
-    /** Liên kết với menu item — nullable (có thể là nguyên liệu thô không có trong menu) */
-    @Column(name = "menu_item_id")
-    private Long menuItemId;
-
     @Column(name = "description", length = 500)
     private String description;
 

@@ -19,6 +19,13 @@ public class UserMapper {
                 .isActive(entity.getIsActive())
                 .role(entity.getRole())
                 .createdAt(entity.getCreatedAt())
+                .staffAddress(entity.getStaffAddress())
+                .idCard(entity.getIdCard())
+                .staffEmail(entity.getStaffEmail())
+                .birthDate(entity.getBirthDate())
+                .startDate(entity.getStartDate())
+                .hourlyWage(entity.getHourlyWage())
+                .deletedAt(entity.getDeletedAt())
                 .build();
     }
 }

@@ -31,4 +31,13 @@ public class TMenuItemAddonEntity {
     @Column(name = "is_available", nullable = false)
     @Builder.Default
     private Boolean isAvailable = true;
+
+    /** true nếu hệ thống tự tắt do hết kho; false nếu admin tắt thủ công. */
+    @Column(name = "disabled_by_stock", nullable = false)
+    @Builder.Default
+    private Boolean disabledByStock = false;
+
+    /** Nguyên liệu kho tương ứng (nullable). Khi kho = 0 thì addon này tự bị tắt. */
+    @Column(name = "inventory_item_id")
+    private Long inventoryItemId;
 }

@@ -16,4 +16,6 @@ public interface MachineService {
     TMachineEntity getEntityById(Long id);
 
     void updateStatus(Long machineId, MachineStatusEnum status, Long sessionId);
+
+    void remoteUnlock(String machineCode);
 }

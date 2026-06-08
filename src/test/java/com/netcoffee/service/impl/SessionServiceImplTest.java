@@ -16,7 +16,6 @@ import com.netcoffee.repository.SessionRepository;
 import com.netcoffee.repository.UserRepository;
 import com.netcoffee.service.SessionBillingService;
 import com.netcoffee.service.TransactionService;
-import com.netcoffee.service.UserService;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
@@ -36,7 +35,6 @@ class SessionServiceImplTest {
     @Mock MachineRepository machineRepository;
     @Mock PricingPlanRepository pricingPlanRepository;
     @Mock UserRepository userRepository;
-    @Mock UserService userService;
     @Mock TransactionService transactionService;
     @Mock SessionMapper sessionMapper;
     @Mock SessionBillingService sessionBillingService;
@@ -51,7 +49,6 @@ class SessionServiceImplTest {
                         machineRepository,
                         pricingPlanRepository,
                         userRepository,
-                        userService,
                         transactionService,
                         sessionMapper);
         sessionService.setSessionBillingService(sessionBillingService);

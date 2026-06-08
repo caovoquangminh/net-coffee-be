@@ -14,8 +14,9 @@ public interface PricingPlanRepository extends JpaRepository<TPricingPlanEntity,
 
     List<TPricingPlanEntity> findByIsActiveTrue();
 
+    // machineZone-specific plan wins over null-zone fallback; highest id breaks ties
     @Query(
-            "SELECT p FROM TPricingPlanEntity p WHERE p.isActive = true AND (p.machineZone = :zone OR p.machineZone IS NULL) AND (p.applicableFrom IS NULL OR p.applicableFrom <= :time) AND (p.applicableTo IS NULL OR p.applicableTo >= :time)")
+            "SELECT p FROM TPricingPlanEntity p WHERE p.isActive = true AND (p.machineZone = :zone OR p.machineZone IS NULL) AND (p.applicableFrom IS NULL OR p.applicableFrom <= :time) AND (p.applicableTo IS NULL OR p.applicableTo >= :time) ORDER BY CASE WHEN p.machineZone IS NOT NULL THEN 0 ELSE 1 END ASC, p.id DESC LIMIT 1")
     Optional<TPricingPlanEntity> findApplicablePlan(
             @Param("zone") String zone, @Param("time") LocalTime time);
 }

@@ -1,6 +1,7 @@
 package com.netcoffee.dto.request;
 
 import com.netcoffee.enumtype.FoodOrderPaymentEnum;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -16,6 +17,7 @@ public class CreateOrderRequest {
 
     @NotNull private Long machineId;
 
+    @Valid
     @NotEmpty(message = "Đơn hàng phải có ít nhất 1 món")
     private List<OrderItemRequest> items;
 

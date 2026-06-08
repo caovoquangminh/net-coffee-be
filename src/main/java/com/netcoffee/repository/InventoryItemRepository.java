@@ -6,7 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 public interface InventoryItemRepository extends JpaRepository<TInventoryItemEntity, Long> {
-    List<TInventoryItemEntity> findByMenuItemId(Long menuItemId);
 
     @Query("SELECT i FROM TInventoryItemEntity i WHERE i.currentStock <= i.minStock")
     List<TInventoryItemEntity> findLowStock();

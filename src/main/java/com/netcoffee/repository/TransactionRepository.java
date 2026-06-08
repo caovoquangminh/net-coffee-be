@@ -52,6 +52,11 @@ public interface TransactionRepository extends JpaRepository<TTransactionEntity,
     BigDecimal sumAllByType(@Param("type") TransactionTypeEnum type);
 
     @Query(
+            "SELECT COALESCE(SUM(t.amount), 0) FROM TTransactionEntity t"
+                    + " WHERE t.sessionId = :sessionId AND t.type = 'DEDUCT'")
+    BigDecimal sumDeductForSession(@Param("sessionId") Long sessionId);
+
+    @Query(
             "SELECT t.performedByUserId, COUNT(t), SUM(t.amount)"
                     + " FROM TTransactionEntity t"
                     + " WHERE t.type = 'TOPUP' AND t.performedByUserId IS NOT NULL"

@@ -51,8 +51,6 @@ public class MonthlyReportServiceImpl {
         return wb;
     }
 
-    // ── Sheet 1: Tổng quan ────────────────────────────────────────────────────
-
     private void buildOverviewSheet(
             XSSFWorkbook wb, Styles s, YearMonth ym, LocalDateTime from, LocalDateTime to) {
 
@@ -62,7 +60,6 @@ public class MonthlyReportServiceImpl {
 
         int r = 0;
 
-        // Title
         Row titleRow = sheet.createRow(r++);
         titleRow.setHeight((short) 900);
         Cell title = titleRow.createCell(0);
@@ -70,9 +67,8 @@ public class MonthlyReportServiceImpl {
         title.setCellStyle(s.title);
         sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 3));
 
-        r++; // blank
+        r++;
 
-        // Period
         BigDecimal netRevenue =
                 transactionRepository.sumByTypeBetween(TransactionTypeEnum.DEDUCT, from, to);
         BigDecimal serviceRevenue =
@@ -118,8 +114,6 @@ public class MonthlyReportServiceImpl {
         }
     }
 
-    // ── Sheet 2: Theo ngày ────────────────────────────────────────────────────
-
     private void buildDailySheet(
             XSSFWorkbook wb,
             Styles s,
@@ -135,7 +129,6 @@ public class MonthlyReportServiceImpl {
 
         int r = 0;
 
-        // Title
         Row titleRow = sheet.createRow(r++);
         titleRow.setHeight((short) 700);
         Cell tc = titleRow.createCell(0);
@@ -144,7 +137,6 @@ public class MonthlyReportServiceImpl {
         sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 6));
         r++;
 
-        // Header
         String[] headers = {
             "Ngày", "Tiền net", "Dịch vụ", "Tổng doanh thu", "Nạp tiền mặt", "Nạp CK", "Tổng nạp"
         };
@@ -156,7 +148,6 @@ public class MonthlyReportServiceImpl {
             c.setCellStyle(s.header);
         }
 
-        // Build day maps
         List<Object[]> netRows = transactionRepository.dailySumByTypeBetween("DEDUCT", from, to);
         List<Object[]> topUpRows = transactionRepository.dailyTopUpByMethodBetween(from, to);
         List<Object[]> foodRows = foodOrderRepository.dailyFoodRevenueBetween(from, to);
@@ -205,7 +196,6 @@ public class MonthlyReportServiceImpl {
             day = day.plusDays(1);
         }
 
-        // Total row
         Row totRow = sheet.createRow(r);
         totRow.setHeight((short) 500);
         cell(totRow, 0, "TỔNG", s.total);
@@ -216,8 +206,6 @@ public class MonthlyReportServiceImpl {
         cellNum(totRow, 5, totBank, s.totalCurrency);
         cellNum(totRow, 6, totCash.add(totBank), s.totalCurrency);
     }
-
-    // ── Sheet 3: Khách hàng ───────────────────────────────────────────────────
 
     private void buildCustomersSheet(
             XSSFWorkbook wb, Styles s, YearMonth ym, LocalDateTime from, LocalDateTime to) {
@@ -255,8 +243,6 @@ public class MonthlyReportServiceImpl {
             cellNum(excelRow, 4, new BigDecimal(row[2].toString()), s.currency);
         }
     }
-
-    // ── Sheet 4: Nhân viên ────────────────────────────────────────────────────
 
     private void buildStaffSheet(
             XSSFWorkbook wb, Styles s, YearMonth ym, LocalDateTime from, LocalDateTime to) {
@@ -309,8 +295,6 @@ public class MonthlyReportServiceImpl {
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
     private Map<String, BigDecimal> toMap(List<Object[]> rows) {
         Map<String, BigDecimal> map = new HashMap<>();
         for (Object[] row : rows) {
@@ -330,8 +314,6 @@ public class MonthlyReportServiceImpl {
         c.setCellValue(value.doubleValue());
         c.setCellStyle(style);
     }
-
-    // ── Styles ────────────────────────────────────────────────────────────────
 
     private static class Styles {
         final CellStyle title, header, label, data, currency, currencyBold, total, totalCurrency;

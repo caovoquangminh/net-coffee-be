@@ -28,8 +28,6 @@ public class InventoryController {
 
     private final InventoryService inventoryService;
 
-    // ── Items ────────────────────────────────────────────────────────────────
-
     @GetMapping("/items")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<List<InventoryItemResponse>>> getAllItems() {
@@ -59,8 +57,6 @@ public class InventoryController {
         return ResponseEntity.ok(
                 ApiResponse.ok("Cập nhật thành công", inventoryService.updateItem(id, request)));
     }
-
-    // ── Transactions ─────────────────────────────────────────────────────────
 
     @PostMapping("/import")
     @PreAuthorize("hasRole('ADMIN')")

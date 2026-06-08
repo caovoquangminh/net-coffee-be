@@ -14,6 +14,8 @@ import com.netcoffee.security.JwtTokenProvider;
 import com.netcoffee.service.AuthService;
 import com.netcoffee.service.SessionService;
 import com.netcoffee.validator.AuthRequestValidator;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -31,6 +33,8 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserMapper userMapper;
     private final SessionService sessionService;
+
+    @PersistenceContext private EntityManager entityManager;
 
     private static final String INVALID_CREDENTIALS = "Số điện thoại hoặc mật khẩu không đúng";
 
@@ -90,6 +94,8 @@ public class AuthServiceImpl implements AuthService {
                         user.getId(),
                         request.getMachineId(),
                         session.getId());
+                // chargeMinimumFee ran in REQUIRES_NEW — refresh to avoid stale L1 cache balance
+                entityManager.refresh(user);
             }
         } catch (InsufficientBalanceException e) {
             throw e;

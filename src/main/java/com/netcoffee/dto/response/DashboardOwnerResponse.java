@@ -16,7 +16,6 @@ public class DashboardOwnerResponse {
 
     private LocalDate date;
 
-    // ── Top 6 KPIs ──────────────────────────────────────────────────────────
     private BigDecimal netRevenue;
     private BigDecimal serviceRevenue;
     private BigDecimal totalRevenue;
@@ -25,15 +24,12 @@ public class DashboardOwnerResponse {
     private BigDecimal lossDetectionDiff;
     private boolean lossDetectionAlert;
 
-    // ── Sections ─────────────────────────────────────────────────────────────
     private CashFlowStats cashFlow;
     private CustomerDebtStats customerDebt;
     private AccountMonitoringStats accountMonitoring;
     private List<StaffStat> staffStats;
     private MachineStats machineStats;
     private LossDetectionStats lossDetection;
-
-    // ─────────────────────────────────────────────────────────────────────────
 
     @Getter
     @Builder
@@ -54,7 +50,6 @@ public class DashboardOwnerResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CustomerDebtStats {
-        /** Ước tính số dư đầu ngày = hiện tại - nạp hôm nay + tiêu hôm nay */
         private BigDecimal startOfDayBalance;
 
         private BigDecimal todayTopUps;

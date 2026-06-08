@@ -5,9 +5,12 @@ import com.netcoffee.dto.response.DashboardStatsResponse;
 import com.netcoffee.enumtype.MachineStatusEnum;
 import com.netcoffee.enumtype.OrderStatusEnum;
 import com.netcoffee.enumtype.TransactionTypeEnum;
+import com.netcoffee.enumtype.UserRoleEnum;
+import com.netcoffee.repository.AttendanceRecordRepository;
 import com.netcoffee.repository.FoodOrderRepository;
 import com.netcoffee.repository.MachineRepository;
 import com.netcoffee.repository.TransactionRepository;
+import com.netcoffee.repository.UserRepository;
 import com.netcoffee.service.DashboardService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -23,6 +26,8 @@ public class DashboardServiceImpl implements DashboardService {
     private final TransactionRepository transactionRepository;
     private final FoodOrderRepository foodOrderRepository;
     private final MachineRepository machineRepository;
+    private final UserRepository userRepository;
+    private final AttendanceRecordRepository attendanceRecordRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -55,6 +60,12 @@ public class DashboardServiceImpl implements DashboardService {
         long inUse = machineRepository.countByStatus(MachineStatusEnum.IN_USE);
         long available = machineRepository.countByStatus(MachineStatusEnum.AVAILABLE);
 
+        long totalStaff = userRepository.countByRoleAndDeletedAtIsNull(UserRoleEnum.STAFF);
+        long staffOnShift =
+                attendanceRecordRepository.countByCheckInTimeIsNotNullAndCheckOutTimeIsNull();
+        BigDecimal currentMonthWageEstimate =
+                attendanceRecordRepository.sumWageEstimateBetween(monthStart, monthEnd);
+
         return DashboardStatsResponse.builder()
                 .todayNetRevenue(todayNet)
                 .todayFoodRevenue(todayFood)
@@ -68,6 +79,9 @@ public class DashboardServiceImpl implements DashboardService {
                 .machinesInUse(inUse)
                 .machinesAvailable(available)
                 .activeSessions(inUse)
+                .totalStaff(totalStaff)
+                .staffOnShift(staffOnShift)
+                .currentMonthWageEstimate(currentMonthWageEstimate)
                 .build();
     }
 }

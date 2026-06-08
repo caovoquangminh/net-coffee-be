@@ -22,7 +22,7 @@ public class SePayWebhookRequest {
 
     private String transactionDate; // "2024-01-01 12:00:00"
 
-    private String accountNumber; // Số TK nhận tiền
+    private String accountNumber;
 
     private String code; // Thường null
 

@@ -22,4 +22,9 @@ public class DashboardStatsResponse {
     private long machinesInUse;
     private long machinesAvailable;
     private long activeSessions;
+
+    // Staff stats
+    private long totalStaff;
+    private long staffOnShift;
+    private BigDecimal currentMonthWageEstimate;
 }

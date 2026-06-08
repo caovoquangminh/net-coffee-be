@@ -30,11 +30,30 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
 app:
   jwt:
     secret: ${JWT_SECRET}
+  cors:
+    # Danh sách origin được phép, phân cách bằng dấu phẩy.
+    # Dev: http://localhost:5173,http://localhost:5174
+    # Production: https://admin.yourshop.vn,app://net-coffee-client
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174}
+  sepay:
+    webhook-secret: ${SEPAY_WEBHOOK_SECRET:}
   vietqr:
     bank-bin: ${VIETQR_BANK_BIN}
     bank-name: ${VIETQR_BANK_NAME}
     account-number: ${VIETQR_ACCOUNT_NUMBER}
     account-name: ${VIETQR_ACCOUNT_NAME}
+  storage:
+    upload-dir: ${UPLOAD_DIR:./uploads}
+    base-url: ${BASE_URL:http://localhost:8080}
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+    admin-chat-id: ${TELEGRAM_ADMIN_CHAT_ID:}
+    webhook-secret: ${TELEGRAM_WEBHOOK_SECRET:changeme}
