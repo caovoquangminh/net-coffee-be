@@ -4,6 +4,7 @@ import com.netcoffee.constant.AppConstant;
 import com.netcoffee.enumtype.UserRoleEnum;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.*;
 
@@ -52,6 +53,27 @@ public class TUserEntity {
     @Column(name = "role", nullable = false, length = 20)
     @Builder.Default
     private UserRoleEnum role = UserRoleEnum.STAFF;
+
+    @Column(name = "staff_address", length = 300)
+    private String staffAddress;
+
+    @Column(name = "id_card", length = 30)
+    private String idCard;
+
+    @Column(name = "staff_email", length = 150)
+    private String staffEmail;
+
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "hourly_wage", precision = 12, scale = 2)
+    private BigDecimal hourlyWage;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

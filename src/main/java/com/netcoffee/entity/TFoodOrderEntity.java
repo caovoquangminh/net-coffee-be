@@ -64,6 +64,14 @@ public class TFoodOrderEntity {
     @Builder.Default
     private FoodOrderPaymentEnum paymentMethod = FoodOrderPaymentEnum.CASH;
 
+    /**
+     * CASH: luôn true. BANK_TRANSFER: false khi tạo đơn, nhân viên phải bấm "Xác nhận đã nhận tiền"
+     * trước khi giao.
+     */
+    @Column(name = "payment_verified", nullable = false)
+    @Builder.Default
+    private Boolean paymentVerified = true;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

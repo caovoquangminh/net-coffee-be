@@ -61,11 +61,9 @@ public class TQrPaymentEntity {
 
     @PrePersist
     protected void onCreate() {
-        // Dùng UTC để đồng bộ với DB config time_zone: UTC
         LocalDateTime nowUtc = LocalDateTime.now(AppConstant.VN_ZONE);
         createdAt = nowUtc;
         if (expiredAt == null) {
-            // QR hết hạn sau 5 phút
             expiredAt = nowUtc.plusMinutes(5);
         }
     }

@@ -38,12 +38,13 @@ public interface UserRepository extends JpaRepository<TUserEntity, Long> {
     List<TUserEntity> findByRoleAndPhoneNumberContainingOrderByCreatedAtDesc(
             UserRoleEnum role, String phoneNumber);
 
-    /** Tất cả hội viên (CUSTOMER + STAFF), không bao gồm ADMIN. */
-    @Query("SELECT u FROM TUserEntity u WHERE u.role != :excludeRole ORDER BY u.createdAt DESC")
+    /** Tất cả hội viên (CUSTOMER + STAFF), không bao gồm ADMIN. Loại trừ soft-deleted. */
+    @Query(
+            "SELECT u FROM TUserEntity u WHERE u.role != :excludeRole AND u.deletedAt IS NULL ORDER BY u.createdAt DESC")
     List<TUserEntity> findAllExcludingRole(@Param("excludeRole") UserRoleEnum excludeRole);
 
     @Query(
-            "SELECT u FROM TUserEntity u WHERE u.role != :excludeRole AND u.phoneNumber LIKE %:phone% ORDER BY u.createdAt DESC")
+            "SELECT u FROM TUserEntity u WHERE u.role != :excludeRole AND u.phoneNumber LIKE %:phone% AND u.deletedAt IS NULL ORDER BY u.createdAt DESC")
     List<TUserEntity> findByPhoneContainingExcludingRole(
             @Param("phone") String phone, @Param("excludeRole") UserRoleEnum excludeRole);
 
@@ -73,4 +74,10 @@ public interface UserRepository extends JpaRepository<TUserEntity, Long> {
                             + "   + COALESCE(SUM(CASE WHEN t.type = 'REFUND' THEN t.amount ELSE 0 END), 0)"
                             + " )) DESC LIMIT 20")
     List<Object[]> findAnomalousAccounts();
+
+    /** Đếm nhân viên còn hoạt động (không bị xóa mềm). */
+    long countByRoleAndDeletedAtIsNull(UserRoleEnum role);
+
+    /** Tất cả nhân viên chưa bị xóa mềm. */
+    List<TUserEntity> findByRoleAndDeletedAtIsNull(UserRoleEnum role);
 }

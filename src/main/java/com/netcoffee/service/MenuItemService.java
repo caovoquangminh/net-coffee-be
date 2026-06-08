@@ -8,7 +8,13 @@ public interface MenuItemService {
 
     List<MenuItemResponse> findAvailable();
 
+    List<MenuItemResponse> findAllForClient();
+
     List<MenuItemResponse> findByCategory(String category);
 
     TMenuItemEntity findById(Long id);
+
+    MenuItemResponse toResponse(TMenuItemEntity item);
+
+    MenuItemResponse toAdminResponse(TMenuItemEntity item);
 }

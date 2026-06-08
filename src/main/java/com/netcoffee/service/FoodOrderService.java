@@ -3,6 +3,7 @@ package com.netcoffee.service;
 import com.netcoffee.dto.request.CreateOrderRequest;
 import com.netcoffee.dto.response.OrderResponse;
 import com.netcoffee.enumtype.OrderStatusEnum;
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface FoodOrderService {
@@ -12,6 +13,10 @@ public interface FoodOrderService {
     OrderResponse updateStatus(Long orderId, OrderStatusEnum status, Long confirmedByUserId);
 
     OrderResponse cancelOrder(Long orderId, String reason, Long cancelledByUserId);
+
+    OrderResponse confirmPayment(Long orderId, Long staffId);
+
+    void autoConfirmPaymentByWebhook(String content, BigDecimal amount);
 
     List<OrderResponse> findBySessionId(Long sessionId);
 

@@ -37,4 +37,12 @@ public class TMenuItemEntity {
     @Column(name = "is_available", nullable = false)
     @Builder.Default
     private Boolean isAvailable = true;
+
+    /** true nếu hệ thống tự tắt do hết kho; false nếu admin tắt thủ công. */
+    @Column(name = "disabled_by_stock", nullable = false)
+    @Builder.Default
+    private Boolean disabledByStock = false;
+
+    @Column(name = "description", length = 500)
+    private String description;
 }

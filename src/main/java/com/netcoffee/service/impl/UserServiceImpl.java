@@ -59,7 +59,6 @@ public class UserServiceImpl implements UserService {
     public boolean deduct(Long userId, BigDecimal amount) {
         int updated = userRepository.decreaseBalance(userId, amount);
         if (updated == 0) {
-            // Kiểm tra user tồn tại không, nếu có thì do balance không đủ
             if (!userRepository.existsById(userId)) {
                 throw new ResourceNotFoundException("Người dùng không tồn tại: " + userId);
             }

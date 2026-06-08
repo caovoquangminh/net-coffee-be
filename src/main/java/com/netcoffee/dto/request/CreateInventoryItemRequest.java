@@ -4,6 +4,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -22,7 +23,7 @@ public class CreateInventoryItemRequest {
     @DecimalMin(value = "0", message = "Tồn kho tối thiểu không được âm")
     private BigDecimal minStock = BigDecimal.ZERO;
 
-    private Long menuItemId;
+    private List<Long> menuItemIds;
 
     @Size(max = 500)
     private String description;

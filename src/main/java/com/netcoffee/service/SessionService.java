@@ -4,6 +4,8 @@ import com.netcoffee.dto.request.StartSessionRequest;
 import com.netcoffee.dto.response.ActiveSessionWithUserResponse;
 import com.netcoffee.dto.response.SessionResponse;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface SessionService {
 
@@ -18,6 +20,8 @@ public interface SessionService {
     SessionResponse findById(Long sessionId);
 
     List<SessionResponse> findByUserId(Long userId);
+
+    Page<SessionResponse> findByUserIdPaged(Long userId, Pageable pageable);
 
     SessionResponse findActiveByUserId(Long userId);
 

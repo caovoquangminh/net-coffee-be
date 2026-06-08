@@ -1,6 +1,9 @@
 package com.netcoffee.security;
 
+import com.netcoffee.constant.ApiPaths;
+import java.util.Arrays;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -24,6 +27,9 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    @Value("${app.cors.allowed-origins}")
+    private String corsAllowedOrigins;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -32,13 +38,14 @@ public class SecurityConfig {
                 .authorizeHttpRequests(
                         auth ->
                                 auth.requestMatchers(
-                                                "/api/auth/**",
-                                                "/api/webhook/**",
+                                                ApiPaths.AUTH + "/**",
+                                                ApiPaths.WEBHOOK + "/**",
                                                 "/actuator/health",
-                                                "/api/qr-payments/generate-by-phone",
-                                                "/api/qr-payments/*/status",
-                                                "/api/chat/active",
-                                                "/ws/**")
+                                                ApiPaths.QR_PAYMENTS + "/generate-by-phone",
+                                                ApiPaths.QR_PAYMENTS + "/*/status",
+                                                ApiPaths.CHAT + "/active",
+                                                "/ws/**",
+                                                "/uploads/**")
                                         .permitAll()
                                         .anyRequest()
                                         .authenticated())
@@ -51,8 +58,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.addAllowedOrigin("http://localhost:5173"); // net-coffee-app
-        config.addAllowedOrigin("http://localhost:5174"); // net-coffee-client
+        Arrays.stream(corsAllowedOrigins.split(","))
+                .map(String::trim)
+                .filter(o -> !o.isEmpty())
+                .forEach(config::addAllowedOrigin);
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         config.setAllowCredentials(true);

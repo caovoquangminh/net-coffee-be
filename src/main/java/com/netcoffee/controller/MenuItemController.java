@@ -18,7 +18,7 @@ public class MenuItemController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<MenuItemResponse>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.ok(menuItemService.findAvailable()));
+        return ResponseEntity.ok(ApiResponse.ok(menuItemService.findAllForClient()));
     }
 
     @GetMapping("/category/{category}")

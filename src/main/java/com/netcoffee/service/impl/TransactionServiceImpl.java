@@ -26,6 +26,12 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     @Transactional(readOnly = true)
+    public BigDecimal sumDeductForSession(Long sessionId) {
+        return transactionRepository.sumDeductForSession(sessionId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<TransactionResponse> findByUserId(Long userId, Pageable pageable) {
         return transactionRepository
                 .findByUserIdOrderByCreatedAtDesc(userId, pageable)
@@ -61,8 +67,7 @@ public class TransactionServiceImpl implements TransactionService {
             Long performedByUserId) {
         TUserEntity user = userService.getEntityById(userId);
 
-        // user.getBalance() đã là balance SAU topUp (increaseBalance chạy trước)
-        // nên balanceBefore = balance hiện tại - amount
+        // increaseBalance ran before this call — back-calculate balanceBefore
         TTransactionEntity tx =
                 TTransactionEntity.builder()
                         .userId(userId)
@@ -97,8 +102,7 @@ public class TransactionServiceImpl implements TransactionService {
             Long performedByUserId) {
         TUserEntity user = userService.getEntityById(userId);
 
-        // user.getBalance() đã là balance SAU deduct (decreaseBalance chạy trước)
-        // nên balanceBefore = balance hiện tại + amount
+        // decreaseBalance ran before this call — back-calculate balanceBefore
         TTransactionEntity tx =
                 TTransactionEntity.builder()
                         .userId(userId)

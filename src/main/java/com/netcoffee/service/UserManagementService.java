@@ -4,6 +4,7 @@ import com.netcoffee.dto.request.ChangePasswordRequest;
 import com.netcoffee.dto.request.CreateCustomerRequest;
 import com.netcoffee.dto.request.ResetPasswordRequest;
 import com.netcoffee.dto.request.UpdateProfileRequest;
+import com.netcoffee.dto.request.UpdateStaffProfileRequest;
 import com.netcoffee.dto.request.UpdateUserRequest;
 import com.netcoffee.dto.response.UserResponse;
 
@@ -14,6 +15,12 @@ public interface UserManagementService {
 
     /** Admin đặt lại mật khẩu cho user bất kỳ. */
     void adminResetPassword(Long userId, ResetPasswordRequest request);
+
+    /** Admin cập nhật hồ sơ nhân viên (địa chỉ, CCCD, email, lương giờ, v.v.). */
+    UserResponse updateStaffProfile(Long userId, UpdateStaffProfileRequest request);
+
+    /** Admin xóa mềm user (set deletedAt = now, isActive = false). */
+    void softDeleteUser(Long userId, Long adminId);
 
     /** User tự cập nhật profile (họ tên). Không đổi SĐT. */
     UserResponse updateMyProfile(Long userId, UpdateProfileRequest request);

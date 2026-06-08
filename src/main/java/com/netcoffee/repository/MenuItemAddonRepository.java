@@ -8,4 +8,6 @@ public interface MenuItemAddonRepository extends JpaRepository<TMenuItemAddonEnt
     List<TMenuItemAddonEntity> findByMenuItemIdAndIsAvailable(Long menuItemId, Boolean isAvailable);
 
     List<TMenuItemAddonEntity> findByMenuItemId(Long menuItemId);
+
+    List<TMenuItemAddonEntity> findByInventoryItemId(Long inventoryItemId);
 }

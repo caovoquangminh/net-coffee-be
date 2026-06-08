@@ -10,7 +10,6 @@ public final class ReferenceCodeUtil {
 
     private static final String CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-    // NC + 6 ký tự = 8 ký tự total
     private static final int RANDOM_LENGTH = 6;
 
     /** Match: NC123456 nap tien NC123456 abc NCABC123 xyz */

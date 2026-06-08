@@ -15,5 +15,5 @@ public class WebhookPaymentRequest {
     private String transferContent; // Nội dung CK — chứa referenceCode
     private BigDecimal transferAmount;
     private String bankCode;
-    private String transactionId; // Mã GD phía ngân hàng
+    private String transactionId;
 }

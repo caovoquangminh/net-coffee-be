@@ -22,11 +22,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FoodOrderServiceImpl implements FoodOrderService {
@@ -36,6 +38,7 @@ public class FoodOrderServiceImpl implements FoodOrderService {
     private final FoodOrderItemAddonRepository foodOrderItemAddonRepository;
     private final MenuItemAddonRepository menuItemAddonRepository;
     private final InventoryItemRepository inventoryItemRepository;
+    private final MenuItemInventoryRepository menuItemInventoryRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
     private final UserRepository userRepository;
     private final SessionRepository sessionRepository;
@@ -67,15 +70,18 @@ public class FoodOrderServiceImpl implements FoodOrderService {
                 throw new IllegalArgumentException(
                         "Món '" + menuItem.getName() + "' hiện không có sẵn");
             }
-
-            // Kiểm tra tồn kho
-            List<TInventoryItemEntity> invItems =
-                    inventoryItemRepository.findByMenuItemId(menuItem.getId());
-            for (TInventoryItemEntity inv : invItems) {
-                if (inv.getCurrentStock().compareTo(BigDecimal.valueOf(itemReq.getQuantity()))
-                        < 0) {
+            // Block order if any linked ingredient is actually out of stock (flag may be stale)
+            for (TMenuItemInventoryEntity link :
+                    menuItemInventoryRepository.findByMenuItemId(menuItem.getId())) {
+                TInventoryItemEntity inv =
+                        inventoryItemRepository.findById(link.getInventoryItemId()).orElse(null);
+                if (inv != null && inv.getCurrentStock().compareTo(BigDecimal.ZERO) <= 0) {
                     throw new IllegalArgumentException(
-                            "Món '" + menuItem.getName() + "' hiện đã hết hàng trong kho");
+                            "Món '"
+                                    + menuItem.getName()
+                                    + "' đang hết nguyên liệu '"
+                                    + inv.getName()
+                                    + "'");
                 }
             }
 
@@ -84,6 +90,10 @@ public class FoodOrderServiceImpl implements FoodOrderService {
                 List<TMenuItemAddonEntity> selectedAddons =
                         menuItemAddonRepository.findAllById(itemReq.getAddonIds());
                 for (TMenuItemAddonEntity addon : selectedAddons) {
+                    if (!addon.getIsAvailable()) {
+                        throw new IllegalArgumentException(
+                                "Topping '" + addon.getName() + "' hiện không có sẵn");
+                    }
                     addonTotal = addonTotal.add(addon.getExtraPrice());
                 }
             }
@@ -104,6 +114,8 @@ public class FoodOrderServiceImpl implements FoodOrderService {
                         ? request.getPaymentMethod()
                         : FoodOrderPaymentEnum.CASH;
 
+        boolean paymentVerified = paymentMethod != FoodOrderPaymentEnum.BANK_TRANSFER;
+
         TFoodOrderEntity order =
                 TFoodOrderEntity.builder()
                         .sessionId(request.getSessionId())
@@ -113,6 +125,7 @@ public class FoodOrderServiceImpl implements FoodOrderService {
                         .totalPrice(total)
                         .note(request.getNote())
                         .paymentMethod(paymentMethod)
+                        .paymentVerified(paymentVerified)
                         .build();
 
         order = foodOrderRepository.save(order);
@@ -164,9 +177,29 @@ public class FoodOrderServiceImpl implements FoodOrderService {
                                         new ResourceNotFoundException(
                                                 "Đơn hàng không tồn tại: " + orderId));
 
+        OrderStatusEnum current = order.getStatus();
+        boolean validTransition =
+                (current == OrderStatusEnum.PENDING && status == OrderStatusEnum.DELIVERING)
+                        || (current == OrderStatusEnum.PENDING
+                                && status == OrderStatusEnum.CANCELLED)
+                        || (current == OrderStatusEnum.DELIVERING && status == OrderStatusEnum.DONE)
+                        || (current == OrderStatusEnum.DELIVERING
+                                && status == OrderStatusEnum.CANCELLED);
+        if (!validTransition) {
+            throw new IllegalStateException(
+                    "Không thể chuyển trạng thái đơn hàng từ " + current + " sang " + status);
+        }
+
+        if (status == OrderStatusEnum.DELIVERING
+                && order.getPaymentMethod() == FoodOrderPaymentEnum.BANK_TRANSFER
+                && !Boolean.TRUE.equals(order.getPaymentVerified())) {
+            throw new IllegalStateException(
+                    "Đơn hàng chuyển khoản chưa được xác nhận thanh toán — "
+                            + "nhân viên cần kiểm tra tài khoản ngân hàng và bấm \"Xác nhận đã nhận tiền\" trước");
+        }
+
         order.setStatus(status);
 
-        // Ghi nhận ai xác nhận (lần đầu)
         if (confirmedByUserId != null && order.getConfirmedBy() == null) {
             order.setConfirmedBy(confirmedByUserId);
             order.setConfirmedAt(LocalDateTime.now(AppConstant.VN_ZONE));
@@ -174,7 +207,6 @@ public class FoodOrderServiceImpl implements FoodOrderService {
 
         order = foodOrderRepository.save(order);
 
-        // Tự động trừ kho khi xác nhận giao hàng
         if (status == OrderStatusEnum.DELIVERING) {
             List<TFoodOrderItemEntity> orderItems = foodOrderItemRepository.findByOrderId(orderId);
             validateStock(orderItems);
@@ -185,6 +217,83 @@ public class FoodOrderServiceImpl implements FoodOrderService {
         OrderResponse response = toResponse(order, items, null);
         messagingTemplate.convertAndSend("/topic/orders/session/" + order.getSessionId(), response);
         return response;
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse confirmPayment(Long orderId, Long staffId) {
+        TFoodOrderEntity order =
+                foodOrderRepository
+                        .findById(orderId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Đơn hàng không tồn tại: " + orderId));
+
+        if (order.getStatus() == OrderStatusEnum.DONE
+                || order.getStatus() == OrderStatusEnum.CANCELLED) {
+            throw new IllegalStateException(
+                    "Không thể xác nhận thanh toán cho đơn ở trạng thái: " + order.getStatus());
+        }
+        if (order.getPaymentMethod() != FoodOrderPaymentEnum.BANK_TRANSFER) {
+            throw new IllegalStateException("Chỉ đơn chuyển khoản mới cần xác nhận thanh toán");
+        }
+
+        order.setPaymentVerified(true);
+        if (order.getConfirmedBy() == null) {
+            order.setConfirmedBy(staffId);
+            order.setConfirmedAt(LocalDateTime.now(AppConstant.VN_ZONE));
+        }
+
+        order = foodOrderRepository.save(order);
+        List<TFoodOrderItemEntity> items = foodOrderItemRepository.findByOrderId(orderId);
+        OrderResponse response = toResponse(order, items, null);
+        messagingTemplate.convertAndSend("/topic/orders/session/" + order.getSessionId(), response);
+        return response;
+    }
+
+    @Override
+    @Transactional
+    public void autoConfirmPaymentByWebhook(String content, BigDecimal amount) {
+        if (content == null || amount == null) return;
+
+        java.util.regex.Pattern p =
+                java.util.regex.Pattern.compile("(?i)(?:don\\s*hang|DH)\\s*(\\d+)");
+        java.util.regex.Matcher m = p.matcher(content);
+        if (!m.find()) return;
+
+        long orderId;
+        try {
+            orderId = Long.parseLong(m.group(1));
+        } catch (NumberFormatException e) {
+            return;
+        }
+
+        foodOrderRepository
+                .findById(orderId)
+                .filter(o -> o.getPaymentMethod() == FoodOrderPaymentEnum.BANK_TRANSFER)
+                .filter(o -> !o.getPaymentVerified())
+                .filter(
+                        o ->
+                                o.getStatus() != OrderStatusEnum.DONE
+                                        && o.getStatus() != OrderStatusEnum.CANCELLED)
+                .filter(o -> o.getTotalPrice().compareTo(amount) == 0)
+                .ifPresent(
+                        o -> {
+                            o.setPaymentVerified(true);
+                            TFoodOrderEntity saved = foodOrderRepository.save(o);
+                            List<TFoodOrderItemEntity> savedItems =
+                                    foodOrderItemRepository.findByOrderId(saved.getId());
+                            OrderResponse resp = toResponse(saved, savedItems, null);
+                            messagingTemplate.convertAndSend(
+                                    "/topic/orders/session/" + saved.getSessionId(), resp);
+                            messagingTemplate.convertAndSend(
+                                    "/topic/admin/payment/verified",
+                                    Map.of(
+                                            "orderId", saved.getId(),
+                                            "amount", amount,
+                                            "sessionId", saved.getSessionId()));
+                        });
     }
 
     @Override
@@ -204,19 +313,6 @@ public class FoodOrderServiceImpl implements FoodOrderService {
                     "Không thể hủy đơn hàng ở trạng thái: " + order.getStatus());
         }
 
-        TUserEntity canceller =
-                userRepository
-                        .findById(cancelledByUserId)
-                        .orElseThrow(
-                                () -> new ResourceNotFoundException("Người dùng không tồn tại"));
-        boolean isStaff =
-                canceller.getRole() == com.netcoffee.enumtype.UserRoleEnum.ADMIN
-                        || canceller.getRole() == com.netcoffee.enumtype.UserRoleEnum.STAFF;
-        if (!isStaff && order.getStatus() != OrderStatusEnum.PENDING) {
-            throw new IllegalStateException(
-                    "Không thể hủy đơn khi nhân viên đã nhận — liên hệ nhân viên để được hỗ trợ");
-        }
-
         order.setStatus(OrderStatusEnum.CANCELLED);
         order.setCancelReason(reason);
         if (order.getConfirmedBy() == null) {
@@ -233,22 +329,62 @@ public class FoodOrderServiceImpl implements FoodOrderService {
 
     private void validateStock(List<TFoodOrderItemEntity> orderItems) {
         for (TFoodOrderItemEntity item : orderItems) {
-            List<TInventoryItemEntity> invItems =
-                    inventoryItemRepository.findByMenuItemId(item.getItemId());
-            for (TInventoryItemEntity inv : invItems) {
-                if (inv.getCurrentStock().compareTo(BigDecimal.ZERO) <= 0) {
-                    throw new IllegalStateException(
-                            "Không thể giao đơn: '" + inv.getName() + "' đã hết trong kho");
-                }
-                if (inv.getCurrentStock().compareTo(BigDecimal.valueOf(item.getQuantity())) < 0) {
-                    throw new IllegalStateException(
-                            "Không thể giao đơn: '"
-                                    + inv.getName()
-                                    + "' trong kho chỉ còn "
-                                    + inv.getCurrentStock()
-                                    + " "
-                                    + inv.getUnit());
-                }
+            List<TMenuItemInventoryEntity> links =
+                    menuItemInventoryRepository.findByMenuItemId(item.getItemId());
+            for (TMenuItemInventoryEntity link : links) {
+                BigDecimal needed =
+                        link.getQuantity().multiply(BigDecimal.valueOf(item.getQuantity()));
+                inventoryItemRepository
+                        .findById(link.getInventoryItemId())
+                        .ifPresent(
+                                inv -> {
+                                    if (inv.getCurrentStock().compareTo(needed) < 0) {
+                                        throw new IllegalStateException(
+                                                "Không thể giao đơn: '"
+                                                        + inv.getName()
+                                                        + "' cần "
+                                                        + needed
+                                                        + " "
+                                                        + inv.getUnit()
+                                                        + " nhưng kho chỉ còn "
+                                                        + inv.getCurrentStock()
+                                                        + " "
+                                                        + inv.getUnit());
+                                    }
+                                });
+            }
+
+            List<TFoodOrderItemAddonEntity> itemAddons =
+                    foodOrderItemAddonRepository.findByOrderItemId(item.getId());
+            for (TFoodOrderItemAddonEntity itemAddon : itemAddons) {
+                menuItemAddonRepository
+                        .findById(itemAddon.getAddonId())
+                        .filter(addon -> addon.getInventoryItemId() != null)
+                        .flatMap(
+                                addon ->
+                                        inventoryItemRepository.findById(
+                                                addon.getInventoryItemId()))
+                        .ifPresent(
+                                inv -> {
+                                    if (inv.getCurrentStock().compareTo(BigDecimal.ZERO) <= 0) {
+                                        throw new IllegalStateException(
+                                                "Không thể giao đơn: topping '"
+                                                        + itemAddon.getAddonName()
+                                                        + "' đã hết trong kho");
+                                    }
+                                    if (inv.getCurrentStock()
+                                                    .compareTo(
+                                                            BigDecimal.valueOf(item.getQuantity()))
+                                            < 0) {
+                                        throw new IllegalStateException(
+                                                "Không thể giao đơn: topping '"
+                                                        + itemAddon.getAddonName()
+                                                        + "' trong kho chỉ còn "
+                                                        + inv.getCurrentStock()
+                                                        + " "
+                                                        + inv.getUnit());
+                                    }
+                                });
             }
         }
     }
@@ -256,51 +392,108 @@ public class FoodOrderServiceImpl implements FoodOrderService {
     private void deductInventory(
             List<TFoodOrderItemEntity> orderItems, Long performedBy, Long orderId) {
         for (TFoodOrderItemEntity item : orderItems) {
-            List<TInventoryItemEntity> invItems =
-                    inventoryItemRepository.findByMenuItemId(item.getItemId());
-            for (TInventoryItemEntity inv : invItems) {
-                BigDecimal qty = BigDecimal.valueOf(item.getQuantity());
-                BigDecimal newStock = inv.getCurrentStock().subtract(qty);
-                if (newStock.compareTo(BigDecimal.ZERO) < 0) newStock = BigDecimal.ZERO;
-                inv.setCurrentStock(newStock);
-                inventoryItemRepository.save(inv);
-
-                inventoryTransactionRepository.save(
-                        TInventoryTransactionEntity.builder()
-                                .inventoryItemId(inv.getId())
-                                .type(InventoryTransactionTypeEnum.EXPORT)
-                                .quantity(qty)
-                                .notes("Tự động từ đơn hàng #" + orderId)
-                                .performedBy(performedBy != null ? performedBy : 1L)
-                                .build());
-
-                // Auto-disable menu item when stock hits 0
-                boolean isOutOfStock = newStock.compareTo(BigDecimal.ZERO) <= 0;
-                if (isOutOfStock && inv.getMenuItemId() != null) {
-                    menuItemRepository
-                            .findById(inv.getMenuItemId())
-                            .ifPresent(
-                                    mi -> {
-                                        mi.setIsAvailable(false);
-                                        menuItemRepository.save(mi);
-                                    });
-                }
-                BigDecimal threshold =
-                        inv.getMinStock().compareTo(BigDecimal.TEN) > 0
-                                ? inv.getMinStock()
-                                : BigDecimal.TEN;
-                if (isOutOfStock || newStock.compareTo(threshold) < 0) {
-                    messagingTemplate.convertAndSend(
-                            "/topic/admin/inventory/low-stock",
-                            Map.of(
-                                    "inventoryItemId", inv.getId(),
-                                    "inventoryItemName", inv.getName(),
-                                    "currentStock", newStock,
-                                    "unit", inv.getUnit(),
-                                    "minStock", inv.getMinStock(),
-                                    "outOfStock", isOutOfStock));
-                }
+            List<TMenuItemInventoryEntity> links =
+                    menuItemInventoryRepository.findByMenuItemId(item.getItemId());
+            for (TMenuItemInventoryEntity link : links) {
+                BigDecimal needed =
+                        link.getQuantity().multiply(BigDecimal.valueOf(item.getQuantity()));
+                inventoryItemRepository
+                        .findById(link.getInventoryItemId())
+                        .ifPresent(
+                                inv -> deductFromInventory(inv, needed, performedBy, orderId, ""));
             }
+
+            List<TFoodOrderItemAddonEntity> itemAddons =
+                    foodOrderItemAddonRepository.findByOrderItemId(item.getId());
+            for (TFoodOrderItemAddonEntity itemAddon : itemAddons) {
+                menuItemAddonRepository
+                        .findById(itemAddon.getAddonId())
+                        .filter(addon -> addon.getInventoryItemId() != null)
+                        .flatMap(
+                                addon ->
+                                        inventoryItemRepository.findById(
+                                                addon.getInventoryItemId()))
+                        .ifPresent(
+                                inv ->
+                                        deductFromInventory(
+                                                inv,
+                                                BigDecimal.valueOf(item.getQuantity()),
+                                                performedBy,
+                                                orderId,
+                                                " (topping: " + itemAddon.getAddonName() + ")"));
+            }
+        }
+    }
+
+    private void deductFromInventory(
+            TInventoryItemEntity inv,
+            BigDecimal quantity,
+            Long performedBy,
+            Long orderId,
+            String noteSuffix) {
+        BigDecimal qty = quantity;
+        BigDecimal actualDeducted = qty.min(inv.getCurrentStock());
+        BigDecimal newStock = inv.getCurrentStock().subtract(actualDeducted);
+        inv.setCurrentStock(newStock);
+        inventoryItemRepository.save(inv);
+
+        inventoryTransactionRepository.save(
+                TInventoryTransactionEntity.builder()
+                        .inventoryItemId(inv.getId())
+                        .type(InventoryTransactionTypeEnum.EXPORT)
+                        .quantity(actualDeducted)
+                        .notes("Tự động từ đơn hàng #" + orderId + noteSuffix)
+                        .performedBy(performedBy != null ? performedBy : 1L)
+                        .build());
+
+        boolean isOutOfStock = newStock.compareTo(BigDecimal.ZERO) <= 0;
+
+        if (isOutOfStock) {
+            List<Long> disabledMenuItemIds = new ArrayList<>();
+            menuItemInventoryRepository
+                    .findByInventoryItemId(inv.getId())
+                    .forEach(
+                            link ->
+                                    menuItemRepository
+                                            .findById(link.getMenuItemId())
+                                            .ifPresent(
+                                                    mi -> {
+                                                        mi.setIsAvailable(false);
+                                                        mi.setDisabledByStock(true);
+                                                        menuItemRepository.save(mi);
+                                                        disabledMenuItemIds.add(mi.getId());
+                                                    }));
+
+            menuItemAddonRepository
+                    .findByInventoryItemId(inv.getId())
+                    .forEach(
+                            addon -> {
+                                addon.setIsAvailable(false);
+                                addon.setDisabledByStock(true);
+                                menuItemAddonRepository.save(addon);
+                            });
+
+            if (!disabledMenuItemIds.isEmpty()) {
+                messagingTemplate.convertAndSend(
+                        "/topic/menu-updated",
+                        Map.of("action", "DISABLED", "menuItemIds", disabledMenuItemIds));
+            }
+        }
+
+        BigDecimal threshold =
+                inv.getMinStock().compareTo(BigDecimal.TEN) > 0
+                        ? inv.getMinStock()
+                        : BigDecimal.TEN;
+        if (isOutOfStock || newStock.compareTo(threshold) < 0) {
+            messagingTemplate.convertAndSend(
+                    "/topic/admin/inventory/low-stock",
+                    Map.of(
+                            "inventoryItemId", inv.getId(),
+                            "inventoryItemName", inv.getName(),
+                            "currentStock", newStock,
+                            "unit", inv.getUnit(),
+                            "minStock", inv.getMinStock(),
+                            "outOfStock", isOutOfStock));
         }
     }
 
@@ -323,8 +516,7 @@ public class FoodOrderServiceImpl implements FoodOrderService {
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> findAll() {
-        return foodOrderRepository.findAll().stream()
-                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+        return foodOrderRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(o -> toResponse(o, foodOrderItemRepository.findByOrderId(o.getId()), null))
                 .toList();
     }
@@ -387,7 +579,11 @@ public class FoodOrderServiceImpl implements FoodOrderService {
                                     try {
                                         itemName =
                                                 menuItemService.findById(i.getItemId()).getName();
-                                    } catch (Exception ignored) {
+                                    } catch (Exception e) {
+                                        log.warn(
+                                                "Menu item {} not found when building order response: {}",
+                                                i.getItemId(),
+                                                e.getMessage());
                                     }
 
                                     return OrderResponse.OrderItemResponse.builder()
@@ -418,6 +614,7 @@ public class FoodOrderServiceImpl implements FoodOrderService {
                 .confirmedAt(order.getConfirmedAt())
                 .cancelReason(order.getCancelReason())
                 .paymentMethod(order.getPaymentMethod())
+                .paymentVerified(order.getPaymentVerified())
                 .qrImageUrl(qrImageUrl)
                 .createdAt(order.getCreatedAt())
                 .items(itemResponses)

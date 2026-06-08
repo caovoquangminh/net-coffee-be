@@ -39,4 +39,6 @@ public interface TransactionService {
             String description,
             PaymentMethodEnum method,
             Long performedByUserId);
+
+    BigDecimal sumDeductForSession(Long sessionId);
 }

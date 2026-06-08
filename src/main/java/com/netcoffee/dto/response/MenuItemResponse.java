@@ -13,8 +13,10 @@ public class MenuItemResponse {
     private BigDecimal price;
     private String category;
     private String imageUrl;
+    private String description;
     private Boolean isAvailable;
     private List<AddonResponse> addons;
+    private List<InventoryLinkResponse> linkedInventoryItems;
 
     @Getter
     @Builder
@@ -23,5 +25,14 @@ public class MenuItemResponse {
         private String name;
         private BigDecimal extraPrice;
         private Boolean isAvailable;
+        private Long inventoryItemId;
+    }
+
+    @Getter
+    @Builder
+    public static class InventoryLinkResponse {
+        private Long inventoryItemId;
+        private String inventoryItemName;
+        private BigDecimal quantity;
     }
 }

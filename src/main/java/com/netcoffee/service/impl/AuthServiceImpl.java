@@ -94,8 +94,7 @@ public class AuthServiceImpl implements AuthService {
                         user.getId(),
                         request.getMachineId(),
                         session.getId());
-                // Force reload từ DB để tránh JPA L1 cache trả về balance cũ
-                // (chargeMinimumFee chạy trong REQUIRES_NEW transaction riêng)
+                // chargeMinimumFee ran in REQUIRES_NEW — refresh to avoid stale L1 cache balance
                 entityManager.refresh(user);
             }
         } catch (InsufficientBalanceException e) {

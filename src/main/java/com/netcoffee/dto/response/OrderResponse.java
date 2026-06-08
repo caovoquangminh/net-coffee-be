@@ -23,6 +23,7 @@ public class OrderResponse {
     private LocalDateTime confirmedAt;
     private String cancelReason;
     private FoodOrderPaymentEnum paymentMethod;
+    private Boolean paymentVerified;
     private String qrImageUrl;
     private LocalDateTime createdAt;
     private List<OrderItemResponse> items;

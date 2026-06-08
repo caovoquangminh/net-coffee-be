@@ -22,6 +22,8 @@ public interface SessionRepository extends JpaRepository<TSessionEntity, Long> {
 
     List<TSessionEntity> findByUserIdOrderByCreatedAtDesc(Long userId);
 
+    Page<TSessionEntity> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+
     boolean existsByMachineIdAndStatus(Long machineId, SessionStatusEnum status);
 
     @Query("SELECT s FROM TSessionEntity s WHERE s.status = 'ACTIVE' ORDER BY s.startedAt ASC")
