@@ -37,6 +37,16 @@ public class UserManagementServiceImpl implements UserManagementService {
         if (request.getFullName() != null) {
             user.setFullName(request.getFullName().isBlank() ? null : request.getFullName().trim());
         }
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank()) {
+            String newPhone = request.getPhoneNumber().trim();
+            if (!newPhone.equals(user.getPhoneNumber())) {
+                if (userRepository.existsByPhoneNumber(newPhone)) {
+                    throw new IllegalArgumentException(
+                            "Số điện thoại đã được dùng bởi tài khoản khác.");
+                }
+                user.setPhoneNumber(newPhone);
+            }
+        }
         if (request.getIsActive() != null) {
             user.setIsActive(request.getIsActive());
         }
