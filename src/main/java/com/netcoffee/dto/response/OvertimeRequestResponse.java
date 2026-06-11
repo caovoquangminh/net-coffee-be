@@ -20,6 +20,8 @@ public class OvertimeRequestResponse {
     private OvertimeTypeEnum otType;
     private Long coveringUserId;
     private String coveringUserName;
+    private LocalDateTime otStartTime;
+    private LocalDateTime otEndTime;
     private OvertimeStatusEnum status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

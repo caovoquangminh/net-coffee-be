@@ -66,6 +66,19 @@ public class ShiftTransferServiceImpl implements ShiftTransferService {
         }
         validateSegment(shift, startTime, endTime);
 
+        // Mỗi NV chỉ có 1 yêu cầu làm thay đang hiệu lực cho 1 ca (tránh chia đoạn chồng chéo).
+        boolean existsActive =
+                transferRepository.findByOriginalUserId(originalUserId).stream()
+                        .anyMatch(
+                                t ->
+                                        t.getShiftId().equals(shiftId)
+                                                && (t.getStatus() == ApprovalStatusEnum.PENDING
+                                                        || t.getStatus()
+                                                                == ApprovalStatusEnum.APPROVED));
+        if (existsActive) {
+            throw new IllegalArgumentException("Bạn đã có yêu cầu làm thay cho ca này rồi.");
+        }
+
         TShiftTransferRequestEntity req =
                 transferRepository.save(
                         TShiftTransferRequestEntity.builder()

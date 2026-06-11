@@ -170,28 +170,30 @@ public class ShiftServiceImpl implements ShiftService {
             Long userId, TWorkShiftEntity shift, ShiftRegistrationStatusEnum status) {
         Optional<TShiftRegistrationEntity> existing =
                 registrationRepository.findByShiftIdAndUserId(shift.getId(), userId);
-        if (existing.isPresent()) {
-            TShiftRegistrationEntity reg = existing.get();
-            if (reg.getStatus() != ShiftRegistrationStatusEnum.CANCELLED) {
-                throw new IllegalArgumentException("Bạn đã đăng ký ca này rồi.");
-            }
-            reg.setStatus(status);
-            registrationRepository.save(reg);
-            return buildShiftResponse(shift);
+        if (existing.isPresent()
+                && existing.get().getStatus() != ShiftRegistrationStatusEnum.CANCELLED) {
+            throw new IllegalArgumentException("Bạn đã đăng ký ca này rồi.");
         }
 
-        long active = countActiveRegistrations(shift.getId());
-        if (active >= MAX_PER_SHIFT) {
+        // Kiểm tra số lượng cho CẢ đăng ký mới lẫn đăng ký lại sau khi hủy (bịt kẽ hở vượt 2
+        // người).
+        if (countActiveRegistrations(shift.getId()) >= MAX_PER_SHIFT) {
             throw new IllegalArgumentException(
                     "Ca này đã đủ người (tối đa " + MAX_PER_SHIFT + ").");
         }
 
-        registrationRepository.save(
-                TShiftRegistrationEntity.builder()
-                        .shiftId(shift.getId())
-                        .userId(userId)
-                        .status(status)
-                        .build());
+        if (existing.isPresent()) {
+            TShiftRegistrationEntity reg = existing.get();
+            reg.setStatus(status);
+            registrationRepository.save(reg);
+        } else {
+            registrationRepository.save(
+                    TShiftRegistrationEntity.builder()
+                            .shiftId(shift.getId())
+                            .userId(userId)
+                            .status(status)
+                            .build());
+        }
         return buildShiftResponse(shift);
     }
 
@@ -344,16 +346,24 @@ public class ShiftServiceImpl implements ShiftService {
         record.setHoursWorked(AttendanceCalc.roundShiftHours(inShift));
 
         // OT: làm THÊM sau khi hết ca + có OT duyệt → tính giờ OT (giới hạn tới giờ OT đã duyệt).
-        if (now.isAfter(wEnd)) {
+        // Bỏ qua bản ghi OT-only (isOvertime) để tránh đếm OT hai lần.
+        if (now.isAfter(wEnd) && !Boolean.TRUE.equals(record.getIsOvertime())) {
             overtimeRequestRepository.findByRequesterIdAndShiftId(userId, shiftId).stream()
                     .filter(o -> o.getStatus() == OvertimeStatusEnum.APPROVED)
                     .findFirst()
                     .ifPresent(
                             ot -> {
+                                // OT chỉ tính trong cửa sổ đã duyệt [otStart, otEnd], và phần thực
+                                // sự làm sau cuối ca [wEnd, checkout]. Lấy giao của hai khoảng.
+                                LocalDateTime otStart =
+                                        ot.getOtStartTime() != null
+                                                        && ot.getOtStartTime().isAfter(wEnd)
+                                                ? ot.getOtStartTime()
+                                                : wEnd;
                                 LocalDateTime cap =
                                         ot.getOtEndTime() != null ? ot.getOtEndTime() : now;
                                 LocalDateTime otEnd = now.isBefore(cap) ? now : cap;
-                                long otMin = java.time.Duration.between(wEnd, otEnd).toMinutes();
+                                long otMin = java.time.Duration.between(otStart, otEnd).toMinutes();
                                 record.setOtHours(
                                         AttendanceCalc.roundShiftHours(Math.max(0, otMin)));
                             });
