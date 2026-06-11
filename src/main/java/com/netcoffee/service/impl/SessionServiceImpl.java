@@ -153,9 +153,10 @@ public class SessionServiceImpl implements SessionService {
     @Override
     @Transactional
     public SessionResponse endSession(Long sessionId, Long requestingUserId) {
+        // Khóa bi quan để tuần tự hóa với billing tick → tránh trừ tiền 2 lần đoạn cuối phiên
         TSessionEntity session =
                 sessionRepository
-                        .findById(sessionId)
+                        .findByIdForUpdate(sessionId)
                         .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại"));
 
         if (!session.getUserId().equals(requestingUserId)) {
@@ -170,7 +171,7 @@ public class SessionServiceImpl implements SessionService {
     public SessionResponse forceEndSession(Long sessionId) {
         TSessionEntity session =
                 sessionRepository
-                        .findById(sessionId)
+                        .findByIdForUpdate(sessionId)
                         .orElseThrow(() -> new ResourceNotFoundException("Session không tồn tại"));
 
         return doEndSession(session, SessionStatusEnum.FORCE_ENDED);

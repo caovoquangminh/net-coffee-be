@@ -70,7 +70,7 @@ class SessionServiceImplTest {
             TSessionEntity session = buildActiveSession(1L, 10L, startedAt, lastBilledAt);
             SessionResponse response = buildResponse(1L);
 
-            when(sessionRepository.findById(1L)).thenReturn(Optional.of(session));
+            when(sessionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(session));
             when(sessionRepository.save(any())).thenReturn(session);
             when(sessionMapper.toResponse(any())).thenReturn(response);
 
@@ -93,7 +93,7 @@ class SessionServiceImplTest {
             TSessionEntity session =
                     buildActiveSession(
                             1L, 10L, LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5), null);
-            when(sessionRepository.findById(1L)).thenReturn(Optional.of(session));
+            when(sessionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(session));
 
             assertThatThrownBy(() -> sessionService.endSession(1L, 99L))
                     .isInstanceOf(AccessDeniedException.class);
@@ -105,7 +105,7 @@ class SessionServiceImplTest {
         @Test
         @DisplayName("Session không tồn tại → ResourceNotFoundException")
         void notFound_throwsException() {
-            when(sessionRepository.findById(1L)).thenReturn(Optional.empty());
+            when(sessionRepository.findByIdForUpdate(1L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> sessionService.endSession(1L, 10L))
                     .isInstanceOf(ResourceNotFoundException.class);
@@ -122,7 +122,7 @@ class SessionServiceImplTest {
                             .pricePerHourSnapshot(AppConstant.SESSION_PRICE_PER_HOUR)
                             .startedAt(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(30))
                             .build();
-            when(sessionRepository.findById(1L)).thenReturn(Optional.of(session));
+            when(sessionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(session));
 
             assertThatThrownBy(() -> sessionService.endSession(1L, 10L))
                     .isInstanceOf(IllegalStateException.class)
@@ -146,7 +146,7 @@ class SessionServiceImplTest {
             TSessionEntity session = buildActiveSession(1L, 10L, startedAt, lastBilledAt);
             SessionResponse response = buildResponse(1L);
 
-            when(sessionRepository.findById(1L)).thenReturn(Optional.of(session));
+            when(sessionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(session));
             when(sessionRepository.save(any())).thenReturn(session);
             when(sessionMapper.toResponse(any())).thenReturn(response);
 
@@ -169,7 +169,7 @@ class SessionServiceImplTest {
                     buildActiveSession(
                             1L, 10L, LocalDateTime.now(ZoneOffset.UTC).minusMinutes(20), null);
 
-            when(sessionRepository.findById(1L)).thenReturn(Optional.of(session));
+            when(sessionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(session));
             when(sessionRepository.save(any())).thenReturn(session);
             when(sessionMapper.toResponse(any())).thenReturn(buildResponse(1L));
             doThrow(new RuntimeException("DB error"))

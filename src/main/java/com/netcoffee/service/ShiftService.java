@@ -33,4 +33,13 @@ public interface ShiftService {
 
     /** Danh sách nhân viên đang ca (đã check-in, chưa check-out). */
     List<AttendanceRecordResponse> getCurrentOnShift();
+
+    /**
+     * Đối soát các ca đã kết thúc: tự động check-out cho người quên check-out (chốt giờ tại cuối
+     * ca) và đánh dấu ABSENT cho người được duyệt ca nhưng không đến. Chạy định kỳ để bịt kẽ hở
+     * "quên check-out → giờ vô hạn" và "vắng không bị ghi nhận".
+     *
+     * @return số bản ghi đã xử lý (auto check-out + absent)
+     */
+    int reconcileEndedShifts();
 }

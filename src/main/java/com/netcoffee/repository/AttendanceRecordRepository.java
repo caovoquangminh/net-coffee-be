@@ -48,20 +48,24 @@ public interface AttendanceRecordRepository extends JpaRepository<TAttendanceRec
 
     /** Lịch sử chấm công của một nhân viên cụ thể trong khoảng ngày. */
     @Query(
-            "SELECT a FROM TAttendanceRecordEntity a "
-                    + "WHERE a.userId = :userId "
-                    + "AND a.checkInTime >= :from AND a.checkInTime < :to "
-                    + "ORDER BY a.checkInTime ASC")
+            "SELECT a FROM TAttendanceRecordEntity a, TWorkShiftEntity s "
+                    + "WHERE a.shiftId = s.id AND a.userId = :userId "
+                    + "AND s.startTime >= :from AND s.startTime < :to "
+                    + "ORDER BY s.startTime ASC")
     List<TAttendanceRecordEntity> findHistoryByUserId(
             @Param("userId") Long userId,
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to);
 
-    /** Lịch sử chấm công tất cả nhân viên trong khoảng ngày. */
+    /**
+     * Lịch sử chấm công tất cả nhân viên trong khoảng ngày. Lọc theo GIỜ CA (join work_shifts) để
+     * bản ghi ABSENT (không có check-in) vẫn hiển thị.
+     */
     @Query(
-            "SELECT a FROM TAttendanceRecordEntity a "
-                    + "WHERE a.checkInTime >= :from AND a.checkInTime < :to "
-                    + "ORDER BY a.checkInTime ASC")
+            "SELECT a FROM TAttendanceRecordEntity a, TWorkShiftEntity s "
+                    + "WHERE a.shiftId = s.id "
+                    + "AND s.startTime >= :from AND s.startTime < :to "
+                    + "ORDER BY s.startTime ASC")
     List<TAttendanceRecordEntity> findHistoryAll(
             @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }

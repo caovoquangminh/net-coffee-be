@@ -20,4 +20,7 @@ public interface ShiftRegistrationRepository extends JpaRepository<TShiftRegistr
     Optional<TShiftRegistrationEntity> findByShiftIdAndUserId(Long shiftId, Long userId);
 
     long countByShiftIdAndStatus(Long shiftId, ShiftRegistrationStatusEnum status);
+
+    List<TShiftRegistrationEntity> findByShiftIdAndStatus(
+            Long shiftId, ShiftRegistrationStatusEnum status);
 }
