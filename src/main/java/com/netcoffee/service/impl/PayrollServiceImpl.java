@@ -76,26 +76,40 @@ public class PayrollServiceImpl implements PayrollService {
 
         List<PayrollRecordResponse> results = new ArrayList<>();
         for (TUserEntity staff : staffList) {
-            BigDecimal totalHours =
-                    attendanceRepository.sumHoursWorkedByUserIdAndDateRange(
-                            staff.getId(), from, to);
-
             List<TAttendanceRecordEntity> periodRecords =
                     attendanceRepository.findHistoryByUserId(staff.getId(), from, to);
 
-            BigDecimal overtimeHours =
+            // Giờ thường = hours_worked của bản ghi KHÔNG phải OT.
+            BigDecimal regularHours =
                     periodRecords.stream()
                             .filter(
                                     a ->
-                                            Boolean.TRUE.equals(a.getIsOvertime())
+                                            !Boolean.TRUE.equals(a.getIsOvertime())
                                                     && a.getHoursWorked() != null)
                             .map(TAttendanceRecordEntity::getHoursWorked)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
+            // Giờ OT = ot_hours (làm thêm sau ca) + bản ghi OT cũ (is_overtime).
+            BigDecimal overtimeHours =
+                    periodRecords.stream()
+                            .map(
+                                    a -> {
+                                        BigDecimal ot =
+                                                a.getOtHours() != null
+                                                        ? a.getOtHours()
+                                                        : BigDecimal.ZERO;
+                                        BigDecimal legacy =
+                                                Boolean.TRUE.equals(a.getIsOvertime())
+                                                                && a.getHoursWorked() != null
+                                                        ? a.getHoursWorked()
+                                                        : BigDecimal.ZERO;
+                                        return ot.add(legacy);
+                                    })
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal totalHours = regularHours.add(overtimeHours);
 
             BigDecimal wage =
                     staff.getHourlyWage() != null ? staff.getHourlyWage() : BigDecimal.ZERO;
-            BigDecimal baseSalary =
-                    totalHours.subtract(overtimeHours).max(BigDecimal.ZERO).multiply(wage);
+            BigDecimal baseSalary = regularHours.multiply(wage);
             BigDecimal otMultiplier =
                     appSettingService.getDecimal(
                             com.netcoffee.service.AppSettingService.OVERTIME_MULTIPLIER,

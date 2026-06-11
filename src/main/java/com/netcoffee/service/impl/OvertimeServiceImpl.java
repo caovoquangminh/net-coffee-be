@@ -56,6 +56,16 @@ public class OvertimeServiceImpl implements OvertimeService {
                 || (replacementUserId != null && replacementUserId.equals(requesterId))) {
             throw new IllegalArgumentException("Không thể chọn chính mình để làm thay.");
         }
+        // OT = phần làm THÊM sau khi hết ca → giờ bắt đầu OT không được trước giờ kết thúc ca.
+        if (otStart != null && otStart.isBefore(shift.getEndTime())) {
+            throw new IllegalArgumentException(
+                    "OT là phần làm thêm SAU khi hết ca (bắt đầu từ "
+                            + shift.getEndTime().toLocalTime()
+                            + " trở đi).");
+        }
+        if (otStart != null && otEnd != null && !otEnd.isAfter(otStart)) {
+            throw new IllegalArgumentException("Giờ kết thúc OT phải sau giờ bắt đầu.");
+        }
 
         boolean alreadyExists =
                 overtimeRequestRepository.findByRequesterIdAndShiftId(requesterId, shiftId).stream()

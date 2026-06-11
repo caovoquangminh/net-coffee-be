@@ -44,6 +44,11 @@ public class TAttendanceRecordEntity {
     @Column(name = "hours_worked", precision = 5, scale = 2)
     private BigDecimal hoursWorked;
 
+    /** Giờ OT = làm thêm sau khi hết ca (đã làm tròn). Trả lương ×hệ số OT. */
+    @Column(name = "ot_hours", precision = 5, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal otHours = BigDecimal.ZERO;
+
     /** Số phút đi trễ so với giờ bắt đầu ca (0 nếu đúng giờ/sớm). */
     @Column(name = "late_minutes", nullable = false)
     @Builder.Default

@@ -343,6 +343,22 @@ public class ShiftServiceImpl implements ShiftService {
                 AttendanceCalc.workedMinutesInShift(record.getCheckInTime(), now, wStart, wEnd);
         record.setHoursWorked(AttendanceCalc.roundShiftHours(inShift));
 
+        // OT: làm THÊM sau khi hết ca + có OT duyệt → tính giờ OT (giới hạn tới giờ OT đã duyệt).
+        if (now.isAfter(wEnd)) {
+            overtimeRequestRepository.findByRequesterIdAndShiftId(userId, shiftId).stream()
+                    .filter(o -> o.getStatus() == OvertimeStatusEnum.APPROVED)
+                    .findFirst()
+                    .ifPresent(
+                            ot -> {
+                                LocalDateTime cap =
+                                        ot.getOtEndTime() != null ? ot.getOtEndTime() : now;
+                                LocalDateTime otEnd = now.isBefore(cap) ? now : cap;
+                                long otMin = java.time.Duration.between(wEnd, otEnd).toMinutes();
+                                record.setOtHours(
+                                        AttendanceCalc.roundShiftHours(Math.max(0, otMin)));
+                            });
+        }
+
         TAttendanceRecordEntity saved = attendanceRepository.save(record);
         TUserEntity user = userRepository.findById(userId).orElse(null);
         notifyTelegramSafe(
