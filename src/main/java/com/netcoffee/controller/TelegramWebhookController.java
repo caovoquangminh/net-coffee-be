@@ -1,7 +1,10 @@
 package com.netcoffee.controller;
 
 import com.netcoffee.constant.ApiPaths;
+import com.netcoffee.service.LeaveService;
 import com.netcoffee.service.OvertimeService;
+import com.netcoffee.service.ShiftSwapService;
+import com.netcoffee.service.TelegramService;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +22,9 @@ public class TelegramWebhookController {
     private String webhookSecret;
 
     private final OvertimeService overtimeService;
+    private final ShiftSwapService shiftSwapService;
+    private final LeaveService leaveService;
+    private final TelegramService telegramService;
 
     @PostMapping
     public ResponseEntity<Void> handleTelegramWebhook(
@@ -38,28 +44,64 @@ public class TelegramWebhookController {
         if (callbackQuery == null) {
             return ResponseEntity.ok().build();
         }
-
         String data = (String) callbackQuery.get("data");
+        String callbackId = (String) callbackQuery.get("id");
         if (data == null) {
             return ResponseEntity.ok().build();
         }
-
         log.info("Telegram callback_query data: {}", data);
 
+        String resultText = "Đã xử lý";
         try {
-            if (data.startsWith("ot_approve:")) {
-                Long requestId = Long.parseLong(data.substring("ot_approve:".length()));
-                overtimeService.approveOvertime(requestId, null);
-                log.info("Approved OT request {} via Telegram", requestId);
-            } else if (data.startsWith("ot_reject:")) {
-                Long requestId = Long.parseLong(data.substring("ot_reject:".length()));
-                overtimeService.rejectOvertime(requestId);
-                log.info("Rejected OT request {} via Telegram", requestId);
-            }
+            resultText = dispatch(data);
         } catch (Exception e) {
-            log.error("Error processing Telegram callback: {}", e.getMessage());
+            log.error("Lỗi xử lý callback Telegram: {}", e.getMessage());
+            resultText = "Lỗi: " + e.getMessage();
         }
-
+        try {
+            telegramService.answerCallback(callbackId, resultText);
+        } catch (Exception ignored) {
+            // best-effort
+        }
         return ResponseEntity.ok().build();
+    }
+
+    /** Định tuyến callback_data dạng {@code <category>_<action>:<id>}. */
+    private String dispatch(String data) {
+        int colon = data.indexOf(':');
+        if (colon < 0) {
+            return "Dữ liệu không hợp lệ";
+        }
+        String prefix = data.substring(0, colon);
+        Long id = Long.parseLong(data.substring(colon + 1));
+        switch (prefix) {
+            case "ot_approve" -> {
+                overtimeService.approveOvertime(id, null);
+                return "✅ Đã duyệt OT #" + id;
+            }
+            case "ot_reject" -> {
+                overtimeService.rejectOvertime(id);
+                return "❌ Đã từ chối OT #" + id;
+            }
+            case "swap_approve" -> {
+                shiftSwapService.approve(id);
+                return "✅ Đã duyệt đổi ca #" + id;
+            }
+            case "swap_reject" -> {
+                shiftSwapService.reject(id);
+                return "❌ Đã từ chối đổi ca #" + id;
+            }
+            case "leave_approve" -> {
+                leaveService.approve(id);
+                return "✅ Đã duyệt nghỉ #" + id;
+            }
+            case "leave_reject" -> {
+                leaveService.reject(id);
+                return "❌ Đã từ chối nghỉ #" + id;
+            }
+            default -> {
+                return "Hành động không xác định: " + prefix;
+            }
+        }
     }
 }

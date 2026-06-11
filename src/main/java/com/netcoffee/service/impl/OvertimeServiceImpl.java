@@ -39,7 +39,10 @@ public class OvertimeServiceImpl implements OvertimeService {
             Long shiftId,
             String reason,
             OvertimeTypeEnum type,
-            Long coveringUserId) {
+            Long coveringUserId,
+            java.time.LocalDateTime otStart,
+            java.time.LocalDateTime otEnd,
+            Long replacementUserId) {
 
         TWorkShiftEntity shift = findShiftOrThrow(shiftId);
         TUserEntity requester = findUserOrThrow(requesterId);
@@ -62,6 +65,9 @@ public class OvertimeServiceImpl implements OvertimeService {
                         .reason(reason)
                         .otType(type)
                         .coveringUserId(coveringUserId)
+                        .replacementUserId(replacementUserId)
+                        .otStartTime(otStart)
+                        .otEndTime(otEnd)
                         .status(OvertimeStatusEnum.PENDING)
                         .build();
         TOvertimeRequestEntity saved = overtimeRequestRepository.save(request);

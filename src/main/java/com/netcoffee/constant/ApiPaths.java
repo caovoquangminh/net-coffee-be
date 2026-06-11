@@ -29,4 +29,7 @@ public final class ApiPaths {
     public static final String OVERTIME = "/api/overtime";
     public static final String FEEDBACK = "/api/feedback";
     public static final String REPORTS = "/api/reports";
+    public static final String SHIFT_SWAP = "/api/shift-swaps";
+    public static final String LEAVE = "/api/leaves";
+    public static final String SETTINGS = "/api/settings";
 }

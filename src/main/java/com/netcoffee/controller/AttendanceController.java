@@ -153,11 +153,30 @@ public class AttendanceController {
                 body.get("coveringUserId") != null
                         ? Long.valueOf(body.get("coveringUserId").toString())
                         : null;
+        Long replacementUserId =
+                body.get("replacementUserId") != null
+                        ? Long.valueOf(body.get("replacementUserId").toString())
+                        : null;
+        java.time.LocalDateTime otStart =
+                body.get("otStartTime") != null
+                        ? java.time.LocalDateTime.parse(body.get("otStartTime").toString())
+                        : null;
+        java.time.LocalDateTime otEnd =
+                body.get("otEndTime") != null
+                        ? java.time.LocalDateTime.parse(body.get("otEndTime").toString())
+                        : null;
         return ResponseEntity.ok(
                 ApiResponse.ok(
                         "Tạo yêu cầu OT thành công",
                         overtimeService.createOvertimeRequest(
-                                userId, shiftId, reason, type, coveringUserId)));
+                                userId,
+                                shiftId,
+                                reason,
+                                type,
+                                coveringUserId,
+                                otStart,
+                                otEnd,
+                                replacementUserId)));
     }
 
     @PatchMapping("/overtime/{id}/approve")
