@@ -37,6 +37,7 @@ public class PayrollServiceImpl implements PayrollService {
     private final PayrollRecordRepository recordRepository;
     private final AttendanceRecordRepository attendanceRepository;
     private final UserRepository userRepository;
+    private final com.netcoffee.service.AppSettingService appSettingService;
 
     @Override
     @Transactional
@@ -79,8 +80,11 @@ public class PayrollServiceImpl implements PayrollService {
                     attendanceRepository.sumHoursWorkedByUserIdAndDateRange(
                             staff.getId(), from, to);
 
+            List<TAttendanceRecordEntity> periodRecords =
+                    attendanceRepository.findHistoryByUserId(staff.getId(), from, to);
+
             BigDecimal overtimeHours =
-                    attendanceRepository.findHistoryByUserId(staff.getId(), from, to).stream()
+                    periodRecords.stream()
                             .filter(
                                     a ->
                                             Boolean.TRUE.equals(a.getIsOvertime())
@@ -92,15 +96,59 @@ public class PayrollServiceImpl implements PayrollService {
                     staff.getHourlyWage() != null ? staff.getHourlyWage() : BigDecimal.ZERO;
             BigDecimal baseSalary =
                     totalHours.subtract(overtimeHours).max(BigDecimal.ZERO).multiply(wage);
-            BigDecimal overtimePay = overtimeHours.multiply(wage).multiply(new BigDecimal("1.5"));
+            BigDecimal otMultiplier =
+                    appSettingService.getDecimal(
+                            com.netcoffee.service.AppSettingService.OVERTIME_MULTIPLIER,
+                            new BigDecimal("1.5"));
+            BigDecimal overtimePay = overtimeHours.multiply(wage).multiply(otMultiplier);
+
+            // Auto thưởng chuyên cần (không trễ, không vắng, có đi làm) + phạt trễ/vắng theo cấu
+            // hình.
+            long lateMinutesTotal =
+                    periodRecords.stream()
+                            .filter(a -> a.getLateMinutes() != null)
+                            .mapToLong(TAttendanceRecordEntity::getLateMinutes)
+                            .sum();
+            long absentCount =
+                    periodRecords.stream()
+                            .filter(
+                                    a ->
+                                            a.getAttendStatus()
+                                                    == com.netcoffee.enumtype.AttendanceStatusEnum
+                                                            .ABSENT)
+                            .count();
+            boolean perfectAttendance =
+                    lateMinutesTotal == 0 && absentCount == 0 && totalHours.signum() > 0;
+            BigDecimal autoBonus =
+                    perfectAttendance
+                            ? appSettingService.getDecimal(
+                                    com.netcoffee.service.AppSettingService.ATTENDANCE_BONUS,
+                                    BigDecimal.ZERO)
+                            : BigDecimal.ZERO;
+            BigDecimal autoPenalty =
+                    appSettingService
+                            .getDecimal(
+                                    com.netcoffee.service.AppSettingService.LATE_PENALTY_PER_MINUTE,
+                                    BigDecimal.ZERO)
+                            .multiply(BigDecimal.valueOf(lateMinutesTotal))
+                            .add(
+                                    appSettingService
+                                            .getDecimal(
+                                                    com.netcoffee.service.AppSettingService
+                                                            .ABSENT_PENALTY,
+                                                    BigDecimal.ZERO)
+                                            .multiply(BigDecimal.valueOf(absentCount)));
 
             Optional<TPayrollRecordEntity> existingOpt =
                     recordRepository.findByUserIdAndPeriodId(staff.getId(), periodId);
 
-            BigDecimal bonus =
+            // Giữ giá trị admin chỉnh tay (khác 0); nếu chưa chỉnh thì dùng auto.
+            BigDecimal existingBonus =
                     existingOpt.map(TPayrollRecordEntity::getBonus).orElse(BigDecimal.ZERO);
-            BigDecimal penalty =
+            BigDecimal existingPenalty =
                     existingOpt.map(TPayrollRecordEntity::getPenalty).orElse(BigDecimal.ZERO);
+            BigDecimal bonus = existingBonus.signum() != 0 ? existingBonus : autoBonus;
+            BigDecimal penalty = existingPenalty.signum() != 0 ? existingPenalty : autoPenalty;
             BigDecimal responsibility =
                     existingOpt
                             .map(TPayrollRecordEntity::getResponsibility)
