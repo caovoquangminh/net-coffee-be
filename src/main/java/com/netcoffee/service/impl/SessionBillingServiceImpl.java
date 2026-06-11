@@ -110,7 +110,8 @@ public class SessionBillingServiceImpl implements SessionBillingService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processBillingNewTx(Long sessionId) {
-        TSessionEntity session = sessionRepository.findById(sessionId).orElse(null);
+        // Khóa bi quan để tuần tự hóa với kết toán cuối phiên (endSession) — tránh double-charge
+        TSessionEntity session = sessionRepository.findByIdForUpdate(sessionId).orElse(null);
         if (session == null || session.getStatus() != SessionStatusEnum.ACTIVE) {
             return;
         }

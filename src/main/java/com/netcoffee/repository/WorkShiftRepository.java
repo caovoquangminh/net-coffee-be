@@ -2,6 +2,7 @@ package com.netcoffee.repository;
 
 import com.netcoffee.entity.TWorkShiftEntity;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,4 +18,7 @@ public interface WorkShiftRepository extends JpaRepository<TWorkShiftEntity, Lon
     Optional<TWorkShiftEntity> findByShiftNumberAndShiftDate(int shiftNumber, LocalDate shiftDate);
 
     boolean existsByShiftNumberAndShiftDate(int shiftNumber, LocalDate shiftDate);
+
+    /** Các ca có endTime trong khoảng — dùng cho job đối soát ca đã kết thúc. */
+    List<TWorkShiftEntity> findByEndTimeBetween(LocalDateTime from, LocalDateTime to);
 }

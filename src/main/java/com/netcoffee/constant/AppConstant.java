@@ -21,12 +21,13 @@ public final class AppConstant {
     public static final int SESSION_MINIMUM_MINUTES = 15;
     public static final BigDecimal SESSION_PRICE_PER_HOUR = new BigDecimal("8000");
 
-    // Session staleness — client phải gửi heartbeat mỗi 2 phút.
+    // Session staleness — client phải gửi heartbeat mỗi 60 giây.
     // Session bị coi là stale (orphaned) nếu:
     //   - Đã có ít nhất 1 heartbeat nhưng heartbeat cuối > STALE_MINUTES trước
     //   - Hoặc chưa có heartbeat nào và startedAt > MAX_DURATION_HOURS trước (safety net cho phiên
     // cũ)
-    public static final int SESSION_STALE_MINUTES = 30;
+    // 5 phút = 5 lần heartbeat bị bỏ lỡ → đủ để phát hiện máy tắt mà không ảnh hưởng kết nối chậm
+    public static final int SESSION_STALE_MINUTES = 5;
     public static final int SESSION_MAX_DURATION_HOURS = 12;
 
     public static final int DEFAULT_PAGE_SIZE = 20;

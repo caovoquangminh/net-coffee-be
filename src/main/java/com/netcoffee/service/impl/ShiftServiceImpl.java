@@ -17,8 +17,8 @@ import com.netcoffee.repository.UserRepository;
 import com.netcoffee.repository.WorkShiftRepository;
 import com.netcoffee.service.ShiftService;
 import com.netcoffee.service.TelegramService;
+import com.netcoffee.utils.AttendanceCalc;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -304,15 +304,27 @@ public class ShiftServiceImpl implements ShiftService {
         }
 
         LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
+        // Lưu timestamp check-out THẬT (audit), nhưng tính công theo thời điểm hiệu lực có cap
         record.setCheckOutTime(now);
 
-        // Round to nearest 30 minutes
-        long totalMinutes = Duration.between(record.getCheckInTime(), now).toMinutes();
-        long roundedMinutes = Math.round(totalMinutes / 30.0) * 30L;
-        BigDecimal hoursWorked =
-                BigDecimal.valueOf(roundedMinutes)
-                        .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
+        boolean hasApprovedOt =
+                overtimeRequestRepository.findByRequesterIdAndShiftId(userId, shiftId).stream()
+                        .anyMatch(
+                                ot ->
+                                        ot.getStatus()
+                                                == com.netcoffee.enumtype.OvertimeStatusEnum
+                                                        .APPROVED);
+
+        // Cap tại cuối ca nếu không có OT duyệt → quên check-out / ở lại quá giờ KHÔNG phồng công
+        LocalDateTime effectiveOut =
+                AttendanceCalc.effectiveCheckOut(now, shift.getEndTime(), hasApprovedOt);
+        BigDecimal hoursWorked = AttendanceCalc.workedHours(record.getCheckInTime(), effectiveOut);
         record.setHoursWorked(hoursWorked);
+
+        // Về sớm hơn (cuối ca − dung sai) → EARLY_LEAVE
+        record.setAttendStatus(
+                AttendanceCalc.resolveCheckoutStatus(
+                        record.getAttendStatus(), now, shift.getEndTime()));
 
         TAttendanceRecordEntity saved = attendanceRepository.save(record);
         TUserEntity user = userRepository.findById(userId).orElse(null);
@@ -395,6 +407,84 @@ public class ShiftServiceImpl implements ShiftService {
                                         userMap.get(r.getUserId()),
                                         shiftMap.get(r.getShiftId())))
                 .toList();
+    }
+
+    // Chỉ đối soát ca đã kết thúc tối thiểu 30 phút (chừa thời gian check-out muộn) và trong 48h
+    // gần
+    // đây (giới hạn phạm vi quét).
+    private static final long RECONCILE_GRACE_MINUTES = 30;
+    private static final long RECONCILE_LOOKBACK_HOURS = 48;
+
+    @Override
+    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 15 * 60 * 1000L)
+    @Transactional
+    public int reconcileEndedShifts() {
+        LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
+        LocalDateTime upper = now.minusMinutes(RECONCILE_GRACE_MINUTES);
+        LocalDateTime lower = now.minusHours(RECONCILE_LOOKBACK_HOURS);
+
+        List<TWorkShiftEntity> endedShifts = workShiftRepository.findByEndTimeBetween(lower, upper);
+        int processed = 0;
+
+        for (TWorkShiftEntity shift : endedShifts) {
+            List<TShiftRegistrationEntity> approved =
+                    registrationRepository.findByShiftIdAndStatus(
+                            shift.getId(), ShiftRegistrationStatusEnum.APPROVED);
+            if (approved.isEmpty()) {
+                continue;
+            }
+
+            Map<Long, TAttendanceRecordEntity> recordByUser =
+                    attendanceRepository.findByShiftId(shift.getId()).stream()
+                            .collect(Collectors.toMap(TAttendanceRecordEntity::getUserId, r -> r));
+
+            for (TShiftRegistrationEntity reg : approved) {
+                TAttendanceRecordEntity rec = recordByUser.get(reg.getUserId());
+
+                if (rec == null) {
+                    // Được duyệt ca nhưng không check-in → ABSENT
+                    attendanceRepository.save(
+                            TAttendanceRecordEntity.builder()
+                                    .userId(reg.getUserId())
+                                    .shiftId(shift.getId())
+                                    .attendStatus(AttendanceStatusEnum.ABSENT)
+                                    .hoursWorked(BigDecimal.ZERO)
+                                    .isOvertime(false)
+                                    .note("Tự động: vắng (được duyệt ca nhưng không check-in)")
+                                    .build());
+                    processed++;
+                } else if (rec.getCheckInTime() != null && rec.getCheckOutTime() == null) {
+                    // Quên check-out → chốt giờ tại thời điểm kết thúc ca (không phồng công)
+                    boolean hasApprovedOt =
+                            overtimeRequestRepository
+                                    .findByRequesterIdAndShiftId(reg.getUserId(), shift.getId())
+                                    .stream()
+                                    .anyMatch(
+                                            ot ->
+                                                    ot.getStatus()
+                                                            == com.netcoffee.enumtype
+                                                                    .OvertimeStatusEnum.APPROVED);
+
+                    LocalDateTime effectiveOut =
+                            AttendanceCalc.effectiveCheckOut(
+                                    shift.getEndTime(), shift.getEndTime(), hasApprovedOt);
+                    rec.setCheckOutTime(shift.getEndTime());
+                    rec.setHoursWorked(
+                            AttendanceCalc.workedHours(rec.getCheckInTime(), effectiveOut));
+                    String prefix = rec.getNote() != null ? rec.getNote() + " · " : "";
+                    rec.setNote(prefix + "Tự động check-out lúc kết thúc ca (quên check-out)");
+                    attendanceRepository.save(rec);
+                    processed++;
+                }
+            }
+        }
+
+        if (processed > 0) {
+            log.info(
+                    "Đối soát ca đã kết thúc: xử lý {} bản ghi (auto check-out + ABSENT)",
+                    processed);
+        }
+        return processed;
     }
 
     private TWorkShiftEntity findShiftOrThrow(Long shiftId) {

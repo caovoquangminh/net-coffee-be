@@ -16,7 +16,6 @@ import com.netcoffee.service.TransactionService;
 import com.netcoffee.service.UserService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,7 +61,7 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("Happy path — deduct thành công và set lastBilledAt = startedAt + 15 phút")
         void happyPath_deductsAndSetsLastBilledAt() {
-            LocalDateTime startedAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(10);
+            LocalDateTime startedAt = LocalDateTime.now(AppConstant.VN_ZONE).minusSeconds(10);
             TSessionEntity session =
                     buildSession(1L, 10L, startedAt, null, SessionStatusEnum.ACTIVE);
             TUserEntity user = buildUser(10L, new BigDecimal("5000"));
@@ -109,8 +108,8 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("lastBilledAt ở tương lai → chưa đến kỳ charge, bỏ qua")
         void lastBilledAtInFuture_skips() {
-            LocalDateTime startedAt = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5);
-            LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(10);
+            LocalDateTime startedAt = LocalDateTime.now(AppConstant.VN_ZONE).minusMinutes(5);
+            LocalDateTime lastBilledAt = LocalDateTime.now(AppConstant.VN_ZONE).plusMinutes(10);
             TSessionEntity session =
                     buildSession(1L, 10L, startedAt, lastBilledAt, SessionStatusEnum.ACTIVE);
 
@@ -125,7 +124,7 @@ class SessionBillingServiceImplTest {
                 "lastBilledAt = null → fallback về startedAt + 15 phút, nếu chưa qua thì bỏ qua")
         void nullLastBilledAt_usesMinimumFallback_skipsIfStillInFreePeriod() {
             // Session mới 10 phút, lastBilledAt null → free period = 15 phút chưa hết
-            LocalDateTime startedAt = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10);
+            LocalDateTime startedAt = LocalDateTime.now(AppConstant.VN_ZONE).minusMinutes(10);
             TSessionEntity session =
                     buildSession(1L, 10L, startedAt, null, SessionStatusEnum.ACTIVE);
 
@@ -137,7 +136,7 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("Đã qua lastBilledAt 90 giây → charge đúng 200đ, cập nhật lastBilledAt")
         void ninetySecondsAfterLastBilled_chargesExactAmount() {
-            LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(90);
+            LocalDateTime lastBilledAt = LocalDateTime.now(AppConstant.VN_ZONE).minusSeconds(90);
             LocalDateTime startedAt = lastBilledAt.minusMinutes(15);
             TSessionEntity session =
                     buildSession(1L, 10L, startedAt, lastBilledAt, SessionStatusEnum.ACTIVE);
@@ -161,7 +160,7 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("Balance = 0 trước khi charge → force end session, không deduct")
         void zeroBalance_forceEndsWithoutDeduct() {
-            LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(60);
+            LocalDateTime lastBilledAt = LocalDateTime.now(AppConstant.VN_ZONE).minusSeconds(60);
             TSessionEntity session =
                     buildSession(
                             1L,
@@ -182,7 +181,7 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("Balance < số tiền owed → charge tối đa bằng balance còn lại")
         void balanceLessThanOwed_chargesRemainingBalance() {
-            LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(3600);
+            LocalDateTime lastBilledAt = LocalDateTime.now(AppConstant.VN_ZONE).minusSeconds(3600);
             TSessionEntity session =
                     buildSession(
                             1L,
@@ -211,7 +210,7 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("Sau khi deduct balance về 0 → force end session")
         void balanceExhaustedAfterDeduct_forceEnds() {
-            LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(60);
+            LocalDateTime lastBilledAt = LocalDateTime.now(AppConstant.VN_ZONE).minusSeconds(60);
             TSessionEntity session =
                     buildSession(
                             1L,
@@ -241,8 +240,8 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("90 giây chưa bill → charge đúng 200đ")
         void nintySecondsUnbilled_chargesCorrectly() {
-            LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(90);
-            LocalDateTime endedAt = LocalDateTime.now(ZoneOffset.UTC);
+            LocalDateTime lastBilledAt = LocalDateTime.now(AppConstant.VN_ZONE).minusSeconds(90);
+            LocalDateTime endedAt = LocalDateTime.now(AppConstant.VN_ZONE);
             TUserEntity user = buildUser(10L, new BigDecimal("5000"));
 
             when(userService.getEntityById(10L)).thenReturn(user);
@@ -259,8 +258,8 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("Session kết thúc trước lastBilledAt (trong 15 phút free) → không charge")
         void endedBeforeLastBilledAt_noCharge() {
-            LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(5);
-            LocalDateTime endedAt = LocalDateTime.now(ZoneOffset.UTC);
+            LocalDateTime lastBilledAt = LocalDateTime.now(AppConstant.VN_ZONE).plusMinutes(5);
+            LocalDateTime endedAt = LocalDateTime.now(AppConstant.VN_ZONE);
 
             billingService.chargeFinalBill(10L, 1L, lastBilledAt, endedAt, new BigDecimal("8000"));
 
@@ -272,7 +271,7 @@ class SessionBillingServiceImplTest {
         @DisplayName("lastBilledAt = null → không charge")
         void nullLastBilledAt_noCharge() {
             billingService.chargeFinalBill(
-                    10L, 1L, null, LocalDateTime.now(ZoneOffset.UTC), new BigDecimal("8000"));
+                    10L, 1L, null, LocalDateTime.now(AppConstant.VN_ZONE), new BigDecimal("8000"));
 
             verify(userService, never()).deduct(any(), any());
         }
@@ -280,7 +279,7 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("Balance = 0 → không charge")
         void zeroBalance_skipsCharge() {
-            LocalDateTime lastBilledAt = LocalDateTime.now(ZoneOffset.UTC).minusSeconds(60);
+            LocalDateTime lastBilledAt = LocalDateTime.now(AppConstant.VN_ZONE).minusSeconds(60);
             TUserEntity user = buildUser(10L, BigDecimal.ZERO);
 
             when(userService.getEntityById(10L)).thenReturn(user);
@@ -289,7 +288,7 @@ class SessionBillingServiceImplTest {
                     10L,
                     1L,
                     lastBilledAt,
-                    LocalDateTime.now(ZoneOffset.UTC),
+                    LocalDateTime.now(AppConstant.VN_ZONE),
                     new BigDecimal("8000"));
 
             verify(userService, never()).deduct(any(), any());
@@ -299,8 +298,8 @@ class SessionBillingServiceImplTest {
         @DisplayName("Balance < tiền owed → charge tối đa bằng balance")
         void balanceLessThanOwed_chargesRemainingBalance() {
             LocalDateTime lastBilledAt =
-                    LocalDateTime.now(ZoneOffset.UTC).minusSeconds(3600); // 1 giờ
-            LocalDateTime endedAt = LocalDateTime.now(ZoneOffset.UTC);
+                    LocalDateTime.now(AppConstant.VN_ZONE).minusSeconds(3600); // 1 giờ
+            LocalDateTime endedAt = LocalDateTime.now(AppConstant.VN_ZONE);
             TUserEntity user = buildUser(10L, new BigDecimal("500")); // còn 500đ < 8000đ
 
             when(userService.getEntityById(10L)).thenReturn(user);
@@ -315,7 +314,7 @@ class SessionBillingServiceImplTest {
         @Test
         @DisplayName("endedAt = lastBilledAt (0 giây) → không charge")
         void sameTimestamp_noCharge() {
-            LocalDateTime ts = LocalDateTime.now(ZoneOffset.UTC);
+            LocalDateTime ts = LocalDateTime.now(AppConstant.VN_ZONE);
 
             billingService.chargeFinalBill(10L, 1L, ts, ts, new BigDecimal("8000"));
 
