@@ -52,6 +52,10 @@ public class OvertimeServiceImpl implements OvertimeService {
                         java.time.LocalDateTime.now(com.netcoffee.constant.AppConstant.VN_ZONE))) {
             throw new IllegalArgumentException("Không thể tạo OT cho ca đã kết thúc.");
         }
+        if ((coveringUserId != null && coveringUserId.equals(requesterId))
+                || (replacementUserId != null && replacementUserId.equals(requesterId))) {
+            throw new IllegalArgumentException("Không thể chọn chính mình để làm thay.");
+        }
 
         boolean alreadyExists =
                 overtimeRequestRepository.findByRequesterIdAndShiftId(requesterId, shiftId).stream()
