@@ -568,7 +568,7 @@ public class ShiftServiceImpl implements ShiftService {
             for (TShiftRegistrationEntity reg : regs) {
                 TAttendanceRecordEntity rec = recByUser.get(reg.getUserId());
                 if (rec == null) {
-                    if (hasApprovedLeave(reg.getUserId(), shift.getShiftDate())) {
+                    if (hasApprovedLeave(reg.getUserId(), shift.getId(), shift.getShiftDate())) {
                         continue; // nghỉ phép đã duyệt → không tính vắng
                     }
                     attendanceRepository.save(
@@ -706,10 +706,12 @@ public class ShiftServiceImpl implements ShiftService {
         }
     }
 
-    private boolean hasApprovedLeave(Long userId, LocalDate date) {
-        return !leaveRequestRepository
+    /** Có đơn nghỉ đã duyệt cho ĐÚNG ca này (hoặc nghỉ cả ngày: shiftId null) trong ngày đó. */
+    private boolean hasApprovedLeave(Long userId, Long shiftId, LocalDate date) {
+        return leaveRequestRepository
                 .findByUserIdAndLeaveDateAndStatus(userId, date, ApprovalStatusEnum.APPROVED)
-                .isEmpty();
+                .stream()
+                .anyMatch(l -> l.getShiftId() == null || l.getShiftId().equals(shiftId));
     }
 
     // ===================================================================== helpers

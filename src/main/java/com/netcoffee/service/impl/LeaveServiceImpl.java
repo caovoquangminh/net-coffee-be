@@ -27,6 +27,7 @@ public class LeaveServiceImpl implements LeaveService {
     private final LeaveRequestRepository leaveRepository;
     private final WorkShiftRepository workShiftRepository;
     private final UserRepository userRepository;
+    private final com.netcoffee.repository.ShiftRegistrationRepository registrationRepository;
     private final TelegramService telegramService;
 
     @Override
@@ -34,9 +35,39 @@ public class LeaveServiceImpl implements LeaveService {
     public LeaveRequestResponse create(
             Long userId, Long shiftId, LocalDate date, LeaveTypeEnum type, String reason) {
         TUserEntity user = findUserOrThrow(userId);
-        if (date == null) {
-            throw new IllegalArgumentException("Ngày nghỉ không được trống.");
+        if (shiftId == null) {
+            throw new IllegalArgumentException("Phải chọn ca cụ thể để xin nghỉ.");
         }
+        TWorkShiftEntity shift =
+                workShiftRepository
+                        .findById(shiftId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Ca không tồn tại: " + shiftId));
+        if (shift.getEndTime()
+                .isBefore(
+                        java.time.LocalDateTime.now(com.netcoffee.constant.AppConstant.VN_ZONE))) {
+            throw new IllegalArgumentException("Không thể xin nghỉ ca đã qua.");
+        }
+        boolean registered =
+                registrationRepository
+                        .findByShiftIdAndUserId(shiftId, userId)
+                        .map(
+                                r ->
+                                        r.getStatus()
+                                                        == com.netcoffee.enumtype
+                                                                .ShiftRegistrationStatusEnum
+                                                                .REGISTERED
+                                                || r.getStatus()
+                                                        == com.netcoffee.enumtype
+                                                                .ShiftRegistrationStatusEnum
+                                                                .ADMIN_ASSIGNED)
+                        .orElse(false);
+        if (!registered) {
+            throw new IllegalArgumentException("Bạn chưa đăng ký ca này nên không cần xin nghỉ.");
+        }
+        date = shift.getShiftDate();
 
         TLeaveRequestEntity req =
                 leaveRepository.save(
