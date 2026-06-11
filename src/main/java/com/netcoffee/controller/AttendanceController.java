@@ -128,6 +128,13 @@ public class AttendanceController {
         return ResponseEntity.ok(ApiResponse.ok(shiftService.getCurrentOnShift()));
     }
 
+    @GetMapping("/dashboard")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<com.netcoffee.dto.response.AttendanceDashboardResponse>>
+            getDashboard() {
+        return ResponseEntity.ok(ApiResponse.ok(shiftService.getDashboardSummary()));
+    }
+
     @GetMapping("/overtime")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<List<OvertimeRequestResponse>>> getOvertime(

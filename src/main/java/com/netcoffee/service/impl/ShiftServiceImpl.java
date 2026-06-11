@@ -367,6 +367,117 @@ public class ShiftServiceImpl implements ShiftService {
                 attendanceRepository.findByCheckInTimeIsNotNullAndCheckOutTimeIsNull());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public com.netcoffee.dto.response.AttendanceDashboardResponse getDashboardSummary() {
+        LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
+        LocalDate today = now.toLocalDate();
+        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate weekEnd = weekStart.plusDays(6);
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate monthEndExcl = monthStart.plusMonths(1);
+
+        // ---- Hôm nay
+        long todayWorking = attendanceRepository.countByCheckInTimeIsNotNullAndCheckOutTimeIsNull();
+        List<TAttendanceRecordEntity> todayRecords =
+                attendanceRepository.findHistoryAll(
+                        today.atStartOfDay(), today.plusDays(1).atStartOfDay());
+        long todayLate =
+                todayRecords.stream()
+                        .filter(a -> a.getAttendStatus() == AttendanceStatusEnum.LATE)
+                        .count();
+        long todayOnLeave =
+                leaveRequestRepository
+                        .findByLeaveDateBetweenAndStatus(today, today, ApprovalStatusEnum.APPROVED)
+                        .size();
+
+        long todayNotCheckedIn = 0;
+        for (TWorkShiftEntity s : workShiftRepository.findByShiftDate(today)) {
+            if (s.getStartTime().isAfter(now)) {
+                continue; // ca chưa tới giờ
+            }
+            long active = countActiveRegistrations(s.getId());
+            long checkedIn =
+                    attendanceRepository.findByShiftId(s.getId()).stream()
+                            .filter(a -> a.getCheckInTime() != null)
+                            .count();
+            todayNotCheckedIn += Math.max(0, active - checkedIn);
+        }
+
+        // ---- Tuần
+        List<TAttendanceRecordEntity> weekRecords =
+                attendanceRepository.findHistoryAll(
+                        weekStart.atStartOfDay(), weekEnd.plusDays(1).atStartOfDay());
+        BigDecimal weekOtHours =
+                weekRecords.stream()
+                        .filter(a -> Boolean.TRUE.equals(a.getIsOvertime()))
+                        .map(a -> a.getHoursWorked() != null ? a.getHoursWorked() : BigDecimal.ZERO)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<TWorkShiftEntity> weekShifts =
+                workShiftRepository.findByShiftDateBetween(weekStart, weekEnd);
+        long totalSlots = (long) weekShifts.size() * MAX_PER_SHIFT;
+        long filledSlots =
+                weekShifts.stream().mapToLong(s -> countActiveRegistrations(s.getId())).sum();
+        int fillRate = totalSlots > 0 ? (int) Math.round(100.0 * filledSlots / totalSlots) : 0;
+
+        // ---- Tháng
+        BigDecimal monthSalaryCost =
+                attendanceRepository.sumWageEstimateBetween(
+                        monthStart.atStartOfDay(), monthEndExcl.atStartOfDay());
+        List<TAttendanceRecordEntity> monthRecords =
+                attendanceRepository.findHistoryAll(
+                        monthStart.atStartOfDay(), monthEndExcl.atStartOfDay());
+
+        Map<Long, BigDecimal> hoursByUser = new java.util.HashMap<>();
+        for (TAttendanceRecordEntity a : monthRecords) {
+            if (a.getHoursWorked() != null) {
+                hoursByUser.merge(a.getUserId(), a.getHoursWorked(), BigDecimal::add);
+            }
+        }
+        List<Long> topUserIds =
+                hoursByUser.entrySet().stream()
+                        .sorted(Map.Entry.<Long, BigDecimal>comparingByValue().reversed())
+                        .limit(3)
+                        .map(Map.Entry::getKey)
+                        .toList();
+        Map<Long, TUserEntity> topUsers =
+                userRepository.findAllById(topUserIds).stream()
+                        .collect(Collectors.toMap(TUserEntity::getId, u -> u));
+        List<com.netcoffee.dto.response.AttendanceDashboardResponse.TopStaff> topStaff =
+                topUserIds.stream()
+                        .map(
+                                uid ->
+                                        com.netcoffee.dto.response.AttendanceDashboardResponse
+                                                .TopStaff.builder()
+                                                .userId(uid)
+                                                .userName(
+                                                        topUsers.get(uid) != null
+                                                                ? topUsers.get(uid).getFullName()
+                                                                : null)
+                                                .hours(hoursByUser.get(uid))
+                                                .build())
+                        .toList();
+
+        return com.netcoffee.dto.response.AttendanceDashboardResponse.builder()
+                .todayWorking(todayWorking)
+                .todayLate(todayLate)
+                .todayOnLeave(todayOnLeave)
+                .todayNotCheckedIn(todayNotCheckedIn)
+                .weekTotalHours(sumHours(weekRecords))
+                .weekOtHours(weekOtHours)
+                .weekFillRatePercent(fillRate)
+                .monthSalaryCost(monthSalaryCost != null ? monthSalaryCost : BigDecimal.ZERO)
+                .monthTotalHours(sumHours(monthRecords))
+                .monthTopStaff(topStaff)
+                .build();
+    }
+
+    private BigDecimal sumHours(List<TAttendanceRecordEntity> records) {
+        return records.stream()
+                .map(a -> a.getHoursWorked() != null ? a.getHoursWorked() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     // ================================================================= reconcile
 
     @Override

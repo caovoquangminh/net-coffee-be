@@ -1,11 +1,15 @@
 package com.netcoffee.service;
 
+import com.netcoffee.dto.response.AttendanceDashboardResponse;
 import com.netcoffee.dto.response.AttendanceRecordResponse;
 import com.netcoffee.dto.response.ShiftResponse;
 import java.time.LocalDate;
 import java.util.List;
 
 public interface ShiftService {
+
+    /** Tổng hợp widget chấm công cho dashboard admin (hôm nay/tuần/tháng). */
+    AttendanceDashboardResponse getDashboardSummary();
 
     /** Tạo 3 ca làm việc cho ngày chỉ định (idempotent). */
     void generateShiftsForDate(LocalDate date);
