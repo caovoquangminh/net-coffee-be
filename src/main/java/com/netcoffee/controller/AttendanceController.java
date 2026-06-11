@@ -66,11 +66,19 @@ public class AttendanceController {
         return ResponseEntity.ok(ApiResponse.ok("Hủy đăng ký ca thành công", null));
     }
 
-    @PatchMapping("/shifts/registrations/{id}/approve")
+    @GetMapping("/registration-window")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ResponseEntity<ApiResponse<Boolean>> registrationWindow() {
+        return ResponseEntity.ok(ApiResponse.ok(shiftService.isRegistrationWindowOpen()));
+    }
+
+    @PostMapping("/shifts/{id}/assign")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ShiftResponse>> approveRegistration(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<ShiftResponse>> assignShift(
+            @PathVariable Long id, @RequestBody Map<String, Long> body) {
+        Long userId = body.get("userId");
         return ResponseEntity.ok(
-                ApiResponse.ok("Phê duyệt ca thành công", shiftService.approveRegistration(id)));
+                ApiResponse.ok("Đã sắp ca cho nhân viên", shiftService.assignShift(id, userId)));
     }
 
     @PostMapping("/checkin")
@@ -86,11 +94,14 @@ public class AttendanceController {
     @PostMapping("/checkout")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<AttendanceRecordResponse>> checkOut(
-            @RequestBody Map<String, Long> body, @AuthenticationPrincipal UserDetails userDetails) {
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        Long shiftId = body.get("shiftId");
+        Long shiftId = Long.valueOf(body.get("shiftId").toString());
+        String reason = body.get("reason") != null ? body.get("reason").toString() : null;
         return ResponseEntity.ok(
-                ApiResponse.ok("Check-out thành công", shiftService.checkOut(userId, shiftId)));
+                ApiResponse.ok(
+                        "Check-out thành công", shiftService.checkOut(userId, shiftId, reason)));
     }
 
     @GetMapping("/history")

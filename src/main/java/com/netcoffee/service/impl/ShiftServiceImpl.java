@@ -7,10 +7,13 @@ import com.netcoffee.entity.TAttendanceRecordEntity;
 import com.netcoffee.entity.TShiftRegistrationEntity;
 import com.netcoffee.entity.TUserEntity;
 import com.netcoffee.entity.TWorkShiftEntity;
+import com.netcoffee.enumtype.ApprovalStatusEnum;
 import com.netcoffee.enumtype.AttendanceStatusEnum;
+import com.netcoffee.enumtype.OvertimeStatusEnum;
 import com.netcoffee.enumtype.ShiftRegistrationStatusEnum;
 import com.netcoffee.exception.ResourceNotFoundException;
 import com.netcoffee.repository.AttendanceRecordRepository;
+import com.netcoffee.repository.LeaveRequestRepository;
 import com.netcoffee.repository.OvertimeRequestRepository;
 import com.netcoffee.repository.ShiftRegistrationRepository;
 import com.netcoffee.repository.UserRepository;
@@ -18,11 +21,14 @@ import com.netcoffee.repository.WorkShiftRepository;
 import com.netcoffee.service.ShiftService;
 import com.netcoffee.service.TelegramService;
 import com.netcoffee.utils.AttendanceCalc;
+import com.netcoffee.utils.HandoverRedistribution;
 import java.math.BigDecimal;
-import java.time.Duration;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +36,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,22 +45,29 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ShiftServiceImpl implements ShiftService {
 
-    // Ca 1: 07:00-15:00, Ca 2: 15:00-23:00, Ca 3: 23:00-07:00 (next day)
+    // Giờ quán net thật: ca1 06:00-11:00, ca2 11:00-17:00, ca3 17:00-22:00 (mở 06:00-22:00).
     private static final LocalTime[][] SHIFT_TIMES = {
-        {LocalTime.of(7, 0), LocalTime.of(15, 0)},
-        {LocalTime.of(15, 0), LocalTime.of(23, 0)},
-        {LocalTime.of(23, 0), LocalTime.of(7, 0)} // end is next day
+        {LocalTime.of(6, 0), LocalTime.of(11, 0)},
+        {LocalTime.of(11, 0), LocalTime.of(17, 0)},
+        {LocalTime.of(17, 0), LocalTime.of(22, 0)}
     };
 
-    private static final int MAX_APPROVED_PER_SHIFT = 2;
-    private static final int CHECK_IN_TOLERANCE_MINUTES = 15;
+    private static final int MAX_PER_SHIFT = 2;
+
+    // Đối soát ca đã kết thúc tối thiểu 30 phút trước (chừa thời gian check-out muộn), trong 48h
+    // gần.
+    private static final long RECONCILE_GRACE_MINUTES = 30;
+    private static final long RECONCILE_LOOKBACK_HOURS = 48;
 
     private final WorkShiftRepository workShiftRepository;
     private final ShiftRegistrationRepository registrationRepository;
     private final AttendanceRecordRepository attendanceRepository;
-    private final UserRepository userRepository;
     private final OvertimeRequestRepository overtimeRequestRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
+    private final UserRepository userRepository;
     private final TelegramService telegramService;
+
+    // ====================================================================== shifts
 
     @Override
     @Transactional
@@ -64,20 +78,12 @@ public class ShiftServiceImpl implements ShiftService {
             }
             LocalTime startLocal = SHIFT_TIMES[shiftNumber - 1][0];
             LocalTime endLocal = SHIFT_TIMES[shiftNumber - 1][1];
-            LocalDateTime startTime = date.atTime(startLocal);
-            LocalDateTime endTime;
-            if (shiftNumber == 3) {
-                // Shift 3 ends at 6:00 the next morning
-                endTime = date.plusDays(1).atTime(endLocal);
-            } else {
-                endTime = date.atTime(endLocal);
-            }
             TWorkShiftEntity shift =
                     TWorkShiftEntity.builder()
                             .shiftNumber(shiftNumber)
                             .shiftDate(date)
-                            .startTime(startTime)
-                            .endTime(endTime)
+                            .startTime(date.atTime(startLocal))
+                            .endTime(date.atTime(endLocal))
                             .build();
             workShiftRepository.save(shift);
         }
@@ -88,13 +94,11 @@ public class ShiftServiceImpl implements ShiftService {
     @Transactional(readOnly = true)
     public List<ShiftResponse> getShiftsForDateRange(LocalDate from, LocalDate to) {
         List<TWorkShiftEntity> shifts = workShiftRepository.findByShiftDateBetween(from, to);
-
         Set<Long> shiftIds =
                 shifts.stream().map(TWorkShiftEntity::getId).collect(Collectors.toSet());
         Map<Long, List<TShiftRegistrationEntity>> regsByShift =
                 registrationRepository.findByShiftIdIn(shiftIds).stream()
                         .collect(Collectors.groupingBy(TShiftRegistrationEntity::getShiftId));
-
         Set<Long> userIds =
                 regsByShift.values().stream()
                         .flatMap(List::stream)
@@ -103,82 +107,92 @@ public class ShiftServiceImpl implements ShiftService {
         Map<Long, TUserEntity> userMap =
                 userRepository.findAllById(userIds).stream()
                         .collect(Collectors.toMap(TUserEntity::getId, u -> u));
-
         return shifts.stream()
                 .map(
-                        shift ->
+                        s ->
                                 toShiftResponse(
-                                        shift,
-                                        regsByShift.getOrDefault(shift.getId(), List.of()),
-                                        userMap))
+                                        s, regsByShift.getOrDefault(s.getId(), List.of()), userMap))
                 .toList();
+    }
+
+    // ================================================================ registration
+
+    @Override
+    public boolean isRegistrationWindowOpen() {
+        DayOfWeek d = LocalDate.now(AppConstant.VN_ZONE).getDayOfWeek();
+        return d == DayOfWeek.FRIDAY || d == DayOfWeek.SATURDAY || d == DayOfWeek.SUNDAY;
+    }
+
+    /** Khoảng tuần kế tiếp (Thứ 2 đến Chủ nhật). */
+    private boolean isInNextWeek(LocalDate shiftDate, LocalDate today) {
+        LocalDate nextMonday =
+                today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(1);
+        LocalDate nextSunday = nextMonday.plusDays(6);
+        return !shiftDate.isBefore(nextMonday) && !shiftDate.isAfter(nextSunday);
     }
 
     @Override
     @Transactional
     public ShiftResponse registerShift(Long userId, Long shiftId) {
         TWorkShiftEntity shift = findShiftOrThrow(shiftId);
+        LocalDate today = LocalDate.now(AppConstant.VN_ZONE);
 
-        LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
-        if (now.isAfter(shift.getEndTime())) {
-            throw new IllegalArgumentException("Ca này đã kết thúc, không thể đăng ký.");
-        }
-
-        Optional<TShiftRegistrationEntity> existing =
-                registrationRepository.findByShiftIdAndUserId(shiftId, userId);
-        if (existing.isPresent()) {
-            TShiftRegistrationEntity existingReg = existing.get();
-            if (existingReg.getStatus() != ShiftRegistrationStatusEnum.CANCELLED) {
-                throw new IllegalArgumentException("Bạn đã đăng ký ca này rồi");
-            }
-            // Re-register after a previous cancellation
-            existingReg.setStatus(ShiftRegistrationStatusEnum.REGISTERED);
-            registrationRepository.save(existingReg);
-            return buildShiftResponse(shift);
-        }
-
-        long approvedCount =
-                registrationRepository.countByShiftIdAndStatus(
-                        shiftId, ShiftRegistrationStatusEnum.APPROVED);
-        if (approvedCount >= MAX_APPROVED_PER_SHIFT) {
+        if (!isRegistrationWindowOpen()) {
             throw new IllegalArgumentException(
-                    "Ca này đã đủ người (tối đa " + MAX_APPROVED_PER_SHIFT + ")");
+                    "Chỉ được đăng ký ca vào Thứ 6, Thứ 7 hoặc Chủ nhật (cho tuần kế tiếp).");
         }
-
-        TShiftRegistrationEntity reg =
-                TShiftRegistrationEntity.builder()
-                        .shiftId(shiftId)
-                        .userId(userId)
-                        .status(ShiftRegistrationStatusEnum.REGISTERED)
-                        .build();
-        registrationRepository.save(reg);
-
-        return buildShiftResponse(shift);
+        if (!isInNextWeek(shift.getShiftDate(), today)) {
+            throw new IllegalArgumentException("Chỉ được đăng ký ca của TUẦN KẾ TIẾP.");
+        }
+        return doRegister(userId, shift, ShiftRegistrationStatusEnum.REGISTERED);
     }
 
     @Override
     @Transactional
-    public ShiftResponse approveRegistration(Long registrationId) {
-        TShiftRegistrationEntity reg =
-                registrationRepository
-                        .findById(registrationId)
-                        .orElseThrow(
-                                () ->
-                                        new ResourceNotFoundException(
-                                                "Đăng ký không tồn tại: " + registrationId));
+    public ShiftResponse assignShift(Long shiftId, Long userId) {
+        TWorkShiftEntity shift = findShiftOrThrow(shiftId);
+        // Admin sắp ca chậm: bỏ qua kiểm tra cửa sổ/tuần.
+        return doRegister(userId, shift, ShiftRegistrationStatusEnum.ADMIN_ASSIGNED);
+    }
 
-        long approvedCount =
-                registrationRepository.countByShiftIdAndStatus(
-                        reg.getShiftId(), ShiftRegistrationStatusEnum.APPROVED);
-        if (approvedCount >= MAX_APPROVED_PER_SHIFT) {
-            throw new IllegalArgumentException(
-                    "Ca này đã đủ " + MAX_APPROVED_PER_SHIFT + " người được phê duyệt");
+    private ShiftResponse doRegister(
+            Long userId, TWorkShiftEntity shift, ShiftRegistrationStatusEnum status) {
+        Optional<TShiftRegistrationEntity> existing =
+                registrationRepository.findByShiftIdAndUserId(shift.getId(), userId);
+        if (existing.isPresent()) {
+            TShiftRegistrationEntity reg = existing.get();
+            if (reg.getStatus() != ShiftRegistrationStatusEnum.CANCELLED) {
+                throw new IllegalArgumentException("Bạn đã đăng ký ca này rồi.");
+            }
+            reg.setStatus(status);
+            registrationRepository.save(reg);
+            return buildShiftResponse(shift);
         }
 
-        reg.setStatus(ShiftRegistrationStatusEnum.APPROVED);
-        registrationRepository.save(reg);
+        long active = countActiveRegistrations(shift.getId());
+        if (active >= MAX_PER_SHIFT) {
+            throw new IllegalArgumentException(
+                    "Ca này đã đủ người (tối đa " + MAX_PER_SHIFT + ").");
+        }
 
-        return buildShiftResponse(findShiftOrThrow(reg.getShiftId()));
+        registrationRepository.save(
+                TShiftRegistrationEntity.builder()
+                        .shiftId(shift.getId())
+                        .userId(userId)
+                        .status(status)
+                        .build());
+        return buildShiftResponse(shift);
+    }
+
+    /** Số đăng ký còn hiệu lực (REGISTERED hoặc ADMIN_ASSIGNED). */
+    private long countActiveRegistrations(Long shiftId) {
+        return registrationRepository.findByShiftId(shiftId).stream()
+                .filter(
+                        r ->
+                                r.getStatus() == ShiftRegistrationStatusEnum.REGISTERED
+                                        || r.getStatus()
+                                                == ShiftRegistrationStatusEnum.ADMIN_ASSIGNED)
+                .count();
     }
 
     @Override
@@ -191,13 +205,30 @@ public class ShiftServiceImpl implements ShiftService {
                                 () ->
                                         new ResourceNotFoundException(
                                                 "Đăng ký không tồn tại: " + registrationId));
-
         if (!isAdmin && !reg.getUserId().equals(userId)) {
             throw new org.springframework.security.access.AccessDeniedException(
-                    "Bạn không có quyền hủy đăng ký của người khác");
+                    "Bạn không có quyền hủy đăng ký của người khác.");
         }
         reg.setStatus(ShiftRegistrationStatusEnum.CANCELLED);
         registrationRepository.save(reg);
+    }
+
+    // =================================================================== check-in
+
+    private boolean isActiveRegistration(Long shiftId, Long userId) {
+        return registrationRepository
+                .findByShiftIdAndUserId(shiftId, userId)
+                .map(
+                        r ->
+                                r.getStatus() == ShiftRegistrationStatusEnum.REGISTERED
+                                        || r.getStatus()
+                                                == ShiftRegistrationStatusEnum.ADMIN_ASSIGNED)
+                .orElse(false);
+    }
+
+    private boolean hasApprovedOt(Long userId, Long shiftId) {
+        return overtimeRequestRepository.findByRequesterIdAndShiftId(userId, shiftId).stream()
+                .anyMatch(ot -> ot.getStatus() == OvertimeStatusEnum.APPROVED);
     }
 
     @Override
@@ -205,141 +236,116 @@ public class ShiftServiceImpl implements ShiftService {
     public AttendanceRecordResponse checkIn(Long userId, Long shiftId) {
         TWorkShiftEntity shift = findShiftOrThrow(shiftId);
 
-        // Check-in requires an APPROVED registration or an APPROVED OT request for this shift
-        boolean hasApprovedRegistration =
-                registrationRepository
-                        .findByShiftIdAndUserId(shiftId, userId)
-                        .map(r -> r.getStatus() == ShiftRegistrationStatusEnum.APPROVED)
-                        .orElse(false);
-
-        boolean hasApprovedOT =
-                overtimeRequestRepository.findByRequesterIdAndShiftId(userId, shiftId).stream()
-                        .anyMatch(
-                                ot ->
-                                        ot.getStatus()
-                                                == com.netcoffee.enumtype.OvertimeStatusEnum
-                                                        .APPROVED);
-
-        if (!hasApprovedRegistration && !hasApprovedOT) {
-            boolean hasRegistration =
-                    registrationRepository.findByShiftIdAndUserId(shiftId, userId).isPresent();
-            if (hasRegistration) {
-                throw new IllegalArgumentException(
-                        "Đăng ký ca của bạn chưa được phê duyệt. Vui lòng liên hệ quản lý.");
-            }
+        boolean activeReg = isActiveRegistration(shiftId, userId);
+        boolean approvedOt = hasApprovedOt(userId, shiftId);
+        if (!activeReg && !approvedOt) {
             throw new IllegalArgumentException(
-                    "Bạn chưa đăng ký ca này. Vui lòng đăng ký và được phê duyệt trước khi check-in.");
+                    "Bạn chưa đăng ký ca này (hoặc chưa có OT được duyệt).");
         }
-
         if (attendanceRepository.findByUserIdAndShiftId(userId, shiftId).isPresent()) {
-            throw new IllegalArgumentException("Bạn đã check-in ca này rồi");
+            throw new IllegalArgumentException("Bạn đã check-in ca này rồi.");
         }
 
         LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
-        long minutesAfterStart = Duration.between(shift.getStartTime(), now).toMinutes();
-
-        // Reject check-in earlier than CHECK_IN_TOLERANCE_MINUTES before shift start
-        if (minutesAfterStart < -CHECK_IN_TOLERANCE_MINUTES) {
-            long minutesUntilCheckIn = -minutesAfterStart - CHECK_IN_TOLERANCE_MINUTES;
+        if (AttendanceCalc.isTooEarlyToCheckIn(now, shift.getStartTime())) {
             throw new IllegalArgumentException(
-                    "Chưa đến giờ check-in. Ca bắt đầu lúc "
-                            + shift.getStartTime().toLocalTime()
-                            + " (còn "
-                            + minutesUntilCheckIn
-                            + " phút nữa mới được check-in).");
+                    "Chưa đến giờ check-in. Chỉ được check-in từ "
+                            + shift.getStartTime()
+                                    .minusMinutes(AttendanceCalc.CHECK_IN_TOLERANCE_MIN)
+                                    .toLocalTime()
+                            + ".");
         }
-
         if (now.isAfter(shift.getEndTime())) {
-            throw new IllegalArgumentException(
-                    "Ca đã kết thúc lúc "
-                            + shift.getEndTime().toLocalTime()
-                            + ". Không thể check-in sau khi ca kết thúc.");
+            throw new IllegalArgumentException("Ca đã kết thúc, không thể check-in.");
         }
 
-        AttendanceStatusEnum status =
-                minutesAfterStart <= CHECK_IN_TOLERANCE_MINUTES
-                        ? AttendanceStatusEnum.ON_TIME
-                        : AttendanceStatusEnum.LATE;
+        AttendanceCalc.CheckInResult ci = AttendanceCalc.resolveCheckIn(now, shift.getStartTime());
 
         TAttendanceRecordEntity record =
                 TAttendanceRecordEntity.builder()
                         .userId(userId)
                         .shiftId(shiftId)
                         .checkInTime(now)
-                        .attendStatus(status)
-                        .isOvertime(hasApprovedOT && !hasApprovedRegistration)
+                        .attendStatus(ci.status())
+                        .lateMinutes(ci.lateMinutes())
+                        .isOvertime(approvedOt && !activeReg)
                         .build();
         TAttendanceRecordEntity saved = attendanceRepository.save(record);
 
         TUserEntity user = userRepository.findById(userId).orElse(null);
-        try {
-            String name = user != null ? user.getFullName() : "ID " + userId;
-            String statusLabel = status == AttendanceStatusEnum.LATE ? "⚠️ Trễ" : "✅ Đúng giờ";
-            telegramService.sendAttendanceNotification(
-                    String.format(
-                            "🟢 Check-in: %s\nCa %d (%s–%s) · %s",
-                            name,
-                            shift.getShiftNumber(),
-                            shift.getStartTime().toLocalTime(),
-                            shift.getEndTime().toLocalTime(),
-                            statusLabel));
-        } catch (Exception e) {
-            log.warn("Failed to send check-in Telegram notification: {}", e.getMessage());
-        }
-
+        notifyTelegramSafe(
+                () -> {
+                    String name = user != null ? user.getFullName() : "ID " + userId;
+                    String statusLabel =
+                            ci.status() == AttendanceStatusEnum.LATE
+                                    ? ("⚠️ Trễ " + ci.lateMinutes() + " phút")
+                                    : "✅ Đúng giờ";
+                    telegramService.sendAttendanceNotification(
+                            String.format(
+                                    "🟢 Check-in: %s\nCa %d (%s–%s) · %s",
+                                    name,
+                                    shift.getShiftNumber(),
+                                    shift.getStartTime().toLocalTime(),
+                                    shift.getEndTime().toLocalTime(),
+                                    statusLabel));
+                });
         return toAttendanceResponse(saved, user, shift);
     }
 
+    // ================================================================== check-out
+
     @Override
     @Transactional
-    public AttendanceRecordResponse checkOut(Long userId, Long shiftId) {
+    public AttendanceRecordResponse checkOut(Long userId, Long shiftId, String reason) {
         TWorkShiftEntity shift = findShiftOrThrow(shiftId);
         TAttendanceRecordEntity record =
                 attendanceRepository
                         .findByUserIdAndShiftId(userId, shiftId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Chưa check-in ca này"));
-
+                        .orElseThrow(() -> new ResourceNotFoundException("Chưa check-in ca này."));
         if (record.getCheckOutTime() != null) {
-            throw new IllegalArgumentException("Bạn đã check-out ca này rồi");
+            throw new IllegalArgumentException("Bạn đã check-out ca này rồi.");
         }
 
         LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
-        // Lưu timestamp check-out THẬT (audit), nhưng tính công theo thời điểm hiệu lực có cap
+        boolean needsReason = AttendanceCalc.checkoutNeedsReason(now, shift.getEndTime());
+        if (needsReason && (reason == null || reason.isBlank())) {
+            boolean early = now.isBefore(shift.getEndTime());
+            throw new IllegalArgumentException(
+                    early
+                            ? "Về sớm hơn 15 phút phải kèm lý do (vd: lý do cá nhân, nhà có việc...)."
+                            : "Về trễ hơn 15 phút phải kèm lý do (vd: làm thay, ca sau tới trễ...).");
+        }
+
         record.setCheckOutTime(now);
-
-        boolean hasApprovedOt =
-                overtimeRequestRepository.findByRequesterIdAndShiftId(userId, shiftId).stream()
-                        .anyMatch(
-                                ot ->
-                                        ot.getStatus()
-                                                == com.netcoffee.enumtype.OvertimeStatusEnum
-                                                        .APPROVED);
-
-        // Cap tại cuối ca nếu không có OT duyệt → quên check-out / ở lại quá giờ KHÔNG phồng công
-        LocalDateTime effectiveOut =
-                AttendanceCalc.effectiveCheckOut(now, shift.getEndTime(), hasApprovedOt);
-        BigDecimal hoursWorked = AttendanceCalc.workedHours(record.getCheckInTime(), effectiveOut);
-        record.setHoursWorked(hoursWorked);
-
-        // Về sớm hơn (cuối ca − dung sai) → EARLY_LEAVE
+        record.setCheckoutReason(needsReason ? reason : null);
+        record.setEarlyLeaveMinutes(AttendanceCalc.earlyLeaveMinutes(now, shift.getEndTime()));
         record.setAttendStatus(
                 AttendanceCalc.resolveCheckoutStatus(
                         record.getAttendStatus(), now, shift.getEndTime()));
 
+        // Giờ công sơ bộ = giờ trong ca (cap tại cuối ca). Bù handover sẽ tính lại ở job đối soát.
+        long inShift =
+                AttendanceCalc.workedMinutesInShift(
+                        record.getCheckInTime(), now, shift.getStartTime(), shift.getEndTime());
+        record.setHoursWorked(AttendanceCalc.roundShiftHours(inShift));
+
         TAttendanceRecordEntity saved = attendanceRepository.save(record);
         TUserEntity user = userRepository.findById(userId).orElse(null);
-        try {
-            String name = user != null ? user.getFullName() : "ID " + userId;
-            telegramService.sendAttendanceNotification(
-                    String.format(
-                            "🔴 Check-out: %s\nCa %d · %.1f giờ làm việc",
-                            name, shift.getShiftNumber(), hoursWorked.doubleValue()));
-        } catch (Exception e) {
-            log.warn("Failed to send check-out Telegram notification: {}", e.getMessage());
-        }
-
+        notifyTelegramSafe(
+                () -> {
+                    String name = user != null ? user.getFullName() : "ID " + userId;
+                    telegramService.sendAttendanceNotification(
+                            String.format(
+                                    "🔴 Check-out: %s\nCa %d · %.1f giờ%s",
+                                    name,
+                                    shift.getShiftNumber(),
+                                    saved.getHoursWorked().doubleValue(),
+                                    needsReason ? (" · Lý do: " + reason) : ""));
+                });
         return toAttendanceResponse(saved, user, shift);
     }
+
+    // ==================================================================== queries
 
     @Override
     @Transactional(readOnly = true)
@@ -347,76 +353,24 @@ public class ShiftServiceImpl implements ShiftService {
             Long userId, LocalDate from, LocalDate to) {
         LocalDateTime fromDt = from.atStartOfDay();
         LocalDateTime toDt = to.plusDays(1).atStartOfDay();
-
         List<TAttendanceRecordEntity> records =
                 userId != null
                         ? attendanceRepository.findHistoryByUserId(userId, fromDt, toDt)
                         : attendanceRepository.findHistoryAll(fromDt, toDt);
-
-        Set<Long> userIds =
-                records.stream()
-                        .map(TAttendanceRecordEntity::getUserId)
-                        .collect(Collectors.toSet());
-        Set<Long> shiftIds =
-                records.stream()
-                        .map(TAttendanceRecordEntity::getShiftId)
-                        .collect(Collectors.toSet());
-        Map<Long, TUserEntity> userMap =
-                userRepository.findAllById(userIds).stream()
-                        .collect(Collectors.toMap(TUserEntity::getId, u -> u));
-        Map<Long, TWorkShiftEntity> shiftMap =
-                workShiftRepository.findAllById(shiftIds).stream()
-                        .collect(Collectors.toMap(TWorkShiftEntity::getId, s -> s));
-
-        return records.stream()
-                .map(
-                        r ->
-                                toAttendanceResponse(
-                                        r,
-                                        userMap.get(r.getUserId()),
-                                        shiftMap.get(r.getShiftId())))
-                .toList();
+        return mapWithUserAndShift(records);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<AttendanceRecordResponse> getCurrentOnShift() {
-        List<TAttendanceRecordEntity> records =
-                attendanceRepository.findByCheckInTimeIsNotNullAndCheckOutTimeIsNull();
-
-        Set<Long> userIds =
-                records.stream()
-                        .map(TAttendanceRecordEntity::getUserId)
-                        .collect(Collectors.toSet());
-        Set<Long> shiftIds =
-                records.stream()
-                        .map(TAttendanceRecordEntity::getShiftId)
-                        .collect(Collectors.toSet());
-        Map<Long, TUserEntity> userMap =
-                userRepository.findAllById(userIds).stream()
-                        .collect(Collectors.toMap(TUserEntity::getId, u -> u));
-        Map<Long, TWorkShiftEntity> shiftMap =
-                workShiftRepository.findAllById(shiftIds).stream()
-                        .collect(Collectors.toMap(TWorkShiftEntity::getId, s -> s));
-
-        return records.stream()
-                .map(
-                        r ->
-                                toAttendanceResponse(
-                                        r,
-                                        userMap.get(r.getUserId()),
-                                        shiftMap.get(r.getShiftId())))
-                .toList();
+        return mapWithUserAndShift(
+                attendanceRepository.findByCheckInTimeIsNotNullAndCheckOutTimeIsNull());
     }
 
-    // Chỉ đối soát ca đã kết thúc tối thiểu 30 phút (chừa thời gian check-out muộn) và trong 48h
-    // gần
-    // đây (giới hạn phạm vi quét).
-    private static final long RECONCILE_GRACE_MINUTES = 30;
-    private static final long RECONCILE_LOOKBACK_HOURS = 48;
+    // ================================================================= reconcile
 
     @Override
-    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 15 * 60 * 1000L)
+    @Scheduled(fixedRate = 15 * 60 * 1000L)
     @Transactional
     public int reconcileEndedShifts() {
         LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
@@ -425,24 +379,29 @@ public class ShiftServiceImpl implements ShiftService {
 
         List<TWorkShiftEntity> endedShifts = workShiftRepository.findByEndTimeBetween(lower, upper);
         int processed = 0;
+        Set<LocalDate> affectedDates = new java.util.HashSet<>();
 
         for (TWorkShiftEntity shift : endedShifts) {
-            List<TShiftRegistrationEntity> approved =
-                    registrationRepository.findByShiftIdAndStatus(
-                            shift.getId(), ShiftRegistrationStatusEnum.APPROVED);
-            if (approved.isEmpty()) {
-                continue;
-            }
-
-            Map<Long, TAttendanceRecordEntity> recordByUser =
+            affectedDates.add(shift.getShiftDate());
+            List<TShiftRegistrationEntity> regs =
+                    registrationRepository.findByShiftId(shift.getId()).stream()
+                            .filter(
+                                    r ->
+                                            r.getStatus() == ShiftRegistrationStatusEnum.REGISTERED
+                                                    || r.getStatus()
+                                                            == ShiftRegistrationStatusEnum
+                                                                    .ADMIN_ASSIGNED)
+                            .toList();
+            Map<Long, TAttendanceRecordEntity> recByUser =
                     attendanceRepository.findByShiftId(shift.getId()).stream()
                             .collect(Collectors.toMap(TAttendanceRecordEntity::getUserId, r -> r));
 
-            for (TShiftRegistrationEntity reg : approved) {
-                TAttendanceRecordEntity rec = recordByUser.get(reg.getUserId());
-
+            for (TShiftRegistrationEntity reg : regs) {
+                TAttendanceRecordEntity rec = recByUser.get(reg.getUserId());
                 if (rec == null) {
-                    // Được duyệt ca nhưng không check-in → ABSENT
+                    if (hasApprovedLeave(reg.getUserId(), shift.getShiftDate())) {
+                        continue; // nghỉ phép đã duyệt → không tính vắng
+                    }
                     attendanceRepository.save(
                             TAttendanceRecordEntity.builder()
                                     .userId(reg.getUserId())
@@ -450,42 +409,143 @@ public class ShiftServiceImpl implements ShiftService {
                                     .attendStatus(AttendanceStatusEnum.ABSENT)
                                     .hoursWorked(BigDecimal.ZERO)
                                     .isOvertime(false)
-                                    .note("Tự động: vắng (được duyệt ca nhưng không check-in)")
+                                    .note("Tự động: vắng (đăng ký ca nhưng không check-in)")
                                     .build());
+                    reg.setStatus(ShiftRegistrationStatusEnum.ABSENT);
+                    registrationRepository.save(reg);
                     processed++;
                 } else if (rec.getCheckInTime() != null && rec.getCheckOutTime() == null) {
-                    // Quên check-out → chốt giờ tại thời điểm kết thúc ca (không phồng công)
-                    boolean hasApprovedOt =
-                            overtimeRequestRepository
-                                    .findByRequesterIdAndShiftId(reg.getUserId(), shift.getId())
-                                    .stream()
-                                    .anyMatch(
-                                            ot ->
-                                                    ot.getStatus()
-                                                            == com.netcoffee.enumtype
-                                                                    .OvertimeStatusEnum.APPROVED);
-
-                    LocalDateTime effectiveOut =
-                            AttendanceCalc.effectiveCheckOut(
-                                    shift.getEndTime(), shift.getEndTime(), hasApprovedOt);
+                    // Quên check-out → chốt tại cuối ca, đánh dấu AUTO_CHECKOUT, báo Telegram.
                     rec.setCheckOutTime(shift.getEndTime());
-                    rec.setHoursWorked(
-                            AttendanceCalc.workedHours(rec.getCheckInTime(), effectiveOut));
+                    rec.setAttendStatus(AttendanceStatusEnum.AUTO_CHECKOUT);
+                    long inShift =
+                            AttendanceCalc.workedMinutesInShift(
+                                    rec.getCheckInTime(),
+                                    shift.getEndTime(),
+                                    shift.getStartTime(),
+                                    shift.getEndTime());
+                    rec.setHoursWorked(AttendanceCalc.roundShiftHours(inShift));
                     String prefix = rec.getNote() != null ? rec.getNote() + " · " : "";
                     rec.setNote(prefix + "Tự động check-out lúc kết thúc ca (quên check-out)");
                     attendanceRepository.save(rec);
+                    reg.setStatus(ShiftRegistrationStatusEnum.COMPLETED);
+                    registrationRepository.save(reg);
+
+                    final Long uid = reg.getUserId();
+                    notifyTelegramSafe(
+                            () -> {
+                                TUserEntity u = userRepository.findById(uid).orElse(null);
+                                telegramService.sendAttendanceNotification(
+                                        String.format(
+                                                "⏰ Quên check-out: %s (Ca %d) → hệ thống tự chốt"
+                                                        + " lúc %s",
+                                                u != null ? u.getFullName() : "ID " + uid,
+                                                shift.getShiftNumber(),
+                                                shift.getEndTime().toLocalTime()));
+                            });
                     processed++;
+                } else if (rec.getCheckOutTime() != null
+                        && reg.getStatus() != ShiftRegistrationStatusEnum.COMPLETED) {
+                    reg.setStatus(ShiftRegistrationStatusEnum.COMPLETED);
+                    registrationRepository.save(reg);
                 }
             }
         }
 
+        // Tính lại giờ công có bù handover cho từng NGÀY đã kết thúc hoàn toàn.
+        for (LocalDate date : affectedDates) {
+            recomputeRedistributionForDate(date, now);
+        }
+
         if (processed > 0) {
-            log.info(
-                    "Đối soát ca đã kết thúc: xử lý {} bản ghi (auto check-out + ABSENT)",
-                    processed);
+            log.info("Đối soát ca: xử lý {} bản ghi (auto check-out + ABSENT)", processed);
         }
         return processed;
     }
+
+    /** Bù handover giữa ca cho 1 ngày (chỉ khi ngày đã kết thúc hẳn). Idempotent. */
+    private void recomputeRedistributionForDate(LocalDate date, LocalDateTime now) {
+        List<TWorkShiftEntity> dayShifts = workShiftRepository.findByShiftDate(date);
+        if (dayShifts.isEmpty()) {
+            return;
+        }
+        LocalDateTime lastEnd =
+                dayShifts.stream()
+                        .map(TWorkShiftEntity::getEndTime)
+                        .max(LocalDateTime::compareTo)
+                        .orElse(null);
+        if (lastEnd == null || now.isBefore(lastEnd.plusMinutes(RECONCILE_GRACE_MINUTES))) {
+            return; // ngày chưa kết thúc hẳn — chờ lần đối soát sau
+        }
+
+        Map<Long, TWorkShiftEntity> shiftMap =
+                dayShifts.stream().collect(Collectors.toMap(TWorkShiftEntity::getId, s -> s));
+        List<TAttendanceRecordEntity> records = new ArrayList<>();
+        for (TWorkShiftEntity s : dayShifts) {
+            records.addAll(attendanceRepository.findByShiftId(s.getId()));
+        }
+
+        List<HandoverRedistribution.ShiftWindow> windows =
+                dayShifts.stream()
+                        .map(
+                                s ->
+                                        new HandoverRedistribution.ShiftWindow(
+                                                s.getId(),
+                                                s.getShiftNumber(),
+                                                s.getStartTime(),
+                                                s.getEndTime()))
+                        .toList();
+        List<HandoverRedistribution.AttendanceInput> inputs =
+                records.stream()
+                        .filter(r -> r.getCheckInTime() != null)
+                        .map(
+                                r ->
+                                        new HandoverRedistribution.AttendanceInput(
+                                                r.getId(),
+                                                r.getShiftId(),
+                                                r.getCheckInTime(),
+                                                r.getCheckOutTime(),
+                                                Boolean.TRUE.equals(r.getIsOvertime())))
+                        .toList();
+
+        Map<Long, Integer> deltas = HandoverRedistribution.compute(windows, inputs);
+
+        for (TAttendanceRecordEntity r : records) {
+            if (r.getCheckInTime() == null || r.getCheckOutTime() == null) {
+                continue;
+            }
+            TWorkShiftEntity s = shiftMap.get(r.getShiftId());
+            if (s == null) {
+                continue;
+            }
+            int delta = deltas.getOrDefault(r.getId(), 0);
+            long inShift =
+                    AttendanceCalc.workedMinutesInShift(
+                            r.getCheckInTime(), r.getCheckOutTime(),
+                            s.getStartTime(), s.getEndTime());
+            long total = Math.max(0, inShift + delta);
+            BigDecimal newHours = AttendanceCalc.roundShiftHours(total);
+            if (r.getRedistributedMinutes() == null
+                    || r.getRedistributedMinutes() != delta
+                    || newHours.compareTo(
+                                    r.getHoursWorked() != null
+                                            ? r.getHoursWorked()
+                                            : BigDecimal.ZERO)
+                            != 0) {
+                r.setRedistributedMinutes(delta);
+                r.setHoursWorked(newHours);
+                attendanceRepository.save(r);
+            }
+        }
+    }
+
+    private boolean hasApprovedLeave(Long userId, LocalDate date) {
+        return !leaveRequestRepository
+                .findByUserIdAndLeaveDateAndStatus(userId, date, ApprovalStatusEnum.APPROVED)
+                .isEmpty();
+    }
+
+    // ===================================================================== helpers
 
     private TWorkShiftEntity findShiftOrThrow(Long shiftId) {
         return workShiftRepository
@@ -494,6 +554,40 @@ public class ShiftServiceImpl implements ShiftService {
                         () ->
                                 new ResourceNotFoundException(
                                         "Ca làm việc không tồn tại: " + shiftId));
+    }
+
+    private void notifyTelegramSafe(Runnable r) {
+        try {
+            r.run();
+        } catch (Exception e) {
+            log.warn("Telegram notify failed: {}", e.getMessage());
+        }
+    }
+
+    private List<AttendanceRecordResponse> mapWithUserAndShift(
+            List<TAttendanceRecordEntity> records) {
+        Set<Long> userIds =
+                records.stream()
+                        .map(TAttendanceRecordEntity::getUserId)
+                        .collect(Collectors.toSet());
+        Set<Long> shiftIds =
+                records.stream()
+                        .map(TAttendanceRecordEntity::getShiftId)
+                        .collect(Collectors.toSet());
+        Map<Long, TUserEntity> userMap =
+                userRepository.findAllById(userIds).stream()
+                        .collect(Collectors.toMap(TUserEntity::getId, u -> u));
+        Map<Long, TWorkShiftEntity> shiftMap =
+                workShiftRepository.findAllById(shiftIds).stream()
+                        .collect(Collectors.toMap(TWorkShiftEntity::getId, s -> s));
+        return records.stream()
+                .map(
+                        r ->
+                                toAttendanceResponse(
+                                        r,
+                                        userMap.get(r.getUserId()),
+                                        shiftMap.get(r.getShiftId())))
+                .toList();
     }
 
     private ShiftResponse buildShiftResponse(TWorkShiftEntity shift) {
@@ -524,7 +618,6 @@ public class ShiftServiceImpl implements ShiftService {
                                             .build();
                                 })
                         .toList();
-
         return ShiftResponse.builder()
                 .id(shift.getId())
                 .shiftNumber(shift.getShiftNumber())
@@ -548,6 +641,10 @@ public class ShiftServiceImpl implements ShiftService {
                 .checkOutTime(record.getCheckOutTime())
                 .attendStatus(record.getAttendStatus())
                 .hoursWorked(record.getHoursWorked())
+                .lateMinutes(record.getLateMinutes())
+                .earlyLeaveMinutes(record.getEarlyLeaveMinutes())
+                .redistributedMinutes(record.getRedistributedMinutes())
+                .checkoutReason(record.getCheckoutReason())
                 .isOvertime(record.getIsOvertime())
                 .note(record.getNote())
                 .createdAt(record.getCreatedAt())
