@@ -11,6 +11,9 @@ public interface ShiftService {
     /** Tổng hợp widget chấm công cho dashboard admin (hôm nay/tuần/tháng). */
     AttendanceDashboardResponse getDashboardSummary();
 
+    /** Danh sách nhân viên (id + tên) để chọn người làm thay / admin sắp ca. */
+    List<com.netcoffee.dto.response.StaffOptionResponse> getColleagues();
+
     /** Tạo 3 ca làm việc cho ngày chỉ định (idempotent). */
     void generateShiftsForDate(LocalDate date);
 

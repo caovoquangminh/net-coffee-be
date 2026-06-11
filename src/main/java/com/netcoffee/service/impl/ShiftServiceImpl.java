@@ -478,6 +478,24 @@ public class ShiftServiceImpl implements ShiftService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.netcoffee.dto.response.StaffOptionResponse> getColleagues() {
+        return userRepository
+                .findByRoleAndDeletedAtIsNull(com.netcoffee.enumtype.UserRoleEnum.STAFF)
+                .stream()
+                .map(
+                        u ->
+                                com.netcoffee.dto.response.StaffOptionResponse.builder()
+                                        .id(u.getId())
+                                        .name(
+                                                u.getFullName() != null
+                                                        ? u.getFullName()
+                                                        : u.getPhoneNumber())
+                                        .build())
+                .toList();
+    }
+
     // ================================================================= reconcile
 
     @Override
