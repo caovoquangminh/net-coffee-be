@@ -26,6 +26,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
 
     @Value("${app.cors.allowed-origins}")
     private String corsAllowedOrigins;
@@ -49,6 +50,9 @@ public class SecurityConfig {
                                         .permitAll()
                                         .anyRequest()
                                         .authenticated())
+                // Token thiếu/sai/hết hạn → 401 (không phải 403) để frontend tự
+                // đăng xuất và đưa user về màn hình login thay vì kẹt màn trống.
+                .exceptionHandling(e -> e.authenticationEntryPoint(restAuthenticationEntryPoint))
                 .addFilterBefore(
                         jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
