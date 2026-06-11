@@ -24,6 +24,7 @@ public class TelegramWebhookController {
     private final OvertimeService overtimeService;
     private final ShiftSwapService shiftSwapService;
     private final LeaveService leaveService;
+    private final com.netcoffee.service.ShiftTransferService shiftTransferService;
     private final TelegramService telegramService;
 
     @PostMapping
@@ -98,6 +99,14 @@ public class TelegramWebhookController {
             case "leave_reject" -> {
                 leaveService.reject(id);
                 return "❌ Đã từ chối nghỉ #" + id;
+            }
+            case "transfer_approve" -> {
+                shiftTransferService.approve(id, null);
+                return "✅ Đã duyệt làm thay #" + id;
+            }
+            case "transfer_reject" -> {
+                shiftTransferService.reject(id);
+                return "❌ Đã từ chối làm thay #" + id;
             }
             default -> {
                 return "Hành động không xác định: " + prefix;

@@ -66,6 +66,17 @@ public class ShiftServiceImpl implements ShiftService {
     private final LeaveRequestRepository leaveRequestRepository;
     private final UserRepository userRepository;
     private final TelegramService telegramService;
+    private final com.netcoffee.repository.ShiftAssignmentRepository shiftAssignmentRepository;
+
+    /**
+     * Cửa sổ giờ hiệu lực của NV trong ca = đoạn ca (nếu có chia do làm thay), ngược lại trọn ca.
+     */
+    private LocalDateTime[] effectiveWindow(Long shiftId, Long userId, TWorkShiftEntity shift) {
+        return shiftAssignmentRepository
+                .findByShiftIdAndUserId(shiftId, userId)
+                .map(a -> new LocalDateTime[] {a.getStartTime(), a.getEndTime()})
+                .orElse(new LocalDateTime[] {shift.getStartTime(), shift.getEndTime()});
+    }
 
     // ====================================================================== shifts
 
@@ -247,19 +258,21 @@ public class ShiftServiceImpl implements ShiftService {
         }
 
         LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
-        if (AttendanceCalc.isTooEarlyToCheckIn(now, shift.getStartTime())) {
+        LocalDateTime[] win = effectiveWindow(shiftId, userId, shift);
+        LocalDateTime wStart = win[0];
+        LocalDateTime wEnd = win[1];
+        if (AttendanceCalc.isTooEarlyToCheckIn(now, wStart)) {
             throw new IllegalArgumentException(
                     "Chưa đến giờ check-in. Chỉ được check-in từ "
-                            + shift.getStartTime()
-                                    .minusMinutes(AttendanceCalc.CHECK_IN_TOLERANCE_MIN)
+                            + wStart.minusMinutes(AttendanceCalc.CHECK_IN_TOLERANCE_MIN)
                                     .toLocalTime()
                             + ".");
         }
-        if (now.isAfter(shift.getEndTime())) {
+        if (now.isAfter(wEnd)) {
             throw new IllegalArgumentException("Ca đã kết thúc, không thể check-in.");
         }
 
-        AttendanceCalc.CheckInResult ci = AttendanceCalc.resolveCheckIn(now, shift.getStartTime());
+        AttendanceCalc.CheckInResult ci = AttendanceCalc.resolveCheckIn(now, wStart);
 
         TAttendanceRecordEntity record =
                 TAttendanceRecordEntity.builder()
@@ -285,8 +298,8 @@ public class ShiftServiceImpl implements ShiftService {
                                     "🟢 Check-in: %s\nCa %d (%s–%s) · %s",
                                     name,
                                     shift.getShiftNumber(),
-                                    shift.getStartTime().toLocalTime(),
-                                    shift.getEndTime().toLocalTime(),
+                                    wStart.toLocalTime(),
+                                    wEnd.toLocalTime(),
                                     statusLabel));
                 });
         return toAttendanceResponse(saved, user, shift);
@@ -307,9 +320,12 @@ public class ShiftServiceImpl implements ShiftService {
         }
 
         LocalDateTime now = LocalDateTime.now(AppConstant.VN_ZONE);
-        boolean needsReason = AttendanceCalc.checkoutNeedsReason(now, shift.getEndTime());
+        LocalDateTime[] win = effectiveWindow(shiftId, userId, shift);
+        LocalDateTime wStart = win[0];
+        LocalDateTime wEnd = win[1];
+        boolean needsReason = AttendanceCalc.checkoutNeedsReason(now, wEnd);
         if (needsReason && (reason == null || reason.isBlank())) {
-            boolean early = now.isBefore(shift.getEndTime());
+            boolean early = now.isBefore(wEnd);
             throw new IllegalArgumentException(
                     early
                             ? "Về sớm hơn 15 phút phải kèm lý do (vd: lý do cá nhân, nhà có việc...)."
@@ -318,15 +334,13 @@ public class ShiftServiceImpl implements ShiftService {
 
         record.setCheckOutTime(now);
         record.setCheckoutReason(needsReason ? reason : null);
-        record.setEarlyLeaveMinutes(AttendanceCalc.earlyLeaveMinutes(now, shift.getEndTime()));
+        record.setEarlyLeaveMinutes(AttendanceCalc.earlyLeaveMinutes(now, wEnd));
         record.setAttendStatus(
-                AttendanceCalc.resolveCheckoutStatus(
-                        record.getAttendStatus(), now, shift.getEndTime()));
+                AttendanceCalc.resolveCheckoutStatus(record.getAttendStatus(), now, wEnd));
 
-        // Giờ công sơ bộ = giờ trong ca (cap tại cuối ca). Bù handover sẽ tính lại ở job đối soát.
+        // Giờ công sơ bộ = giờ trong ĐOẠN của NV (cap tại cuối đoạn). Bù handover tính lại ở job.
         long inShift =
-                AttendanceCalc.workedMinutesInShift(
-                        record.getCheckInTime(), now, shift.getStartTime(), shift.getEndTime());
+                AttendanceCalc.workedMinutesInShift(record.getCheckInTime(), now, wStart, wEnd);
         record.setHoursWorked(AttendanceCalc.roundShiftHours(inShift));
 
         TAttendanceRecordEntity saved = attendanceRepository.save(record);
@@ -544,15 +558,13 @@ public class ShiftServiceImpl implements ShiftService {
                     registrationRepository.save(reg);
                     processed++;
                 } else if (rec.getCheckInTime() != null && rec.getCheckOutTime() == null) {
-                    // Quên check-out → chốt tại cuối ca, đánh dấu AUTO_CHECKOUT, báo Telegram.
-                    rec.setCheckOutTime(shift.getEndTime());
+                    // Quên check-out → chốt tại cuối ĐOẠN, đánh dấu AUTO_CHECKOUT, báo Telegram.
+                    LocalDateTime[] w = effectiveWindow(shift.getId(), reg.getUserId(), shift);
+                    rec.setCheckOutTime(w[1]);
                     rec.setAttendStatus(AttendanceStatusEnum.AUTO_CHECKOUT);
                     long inShift =
                             AttendanceCalc.workedMinutesInShift(
-                                    rec.getCheckInTime(),
-                                    shift.getEndTime(),
-                                    shift.getStartTime(),
-                                    shift.getEndTime());
+                                    rec.getCheckInTime(), w[1], w[0], w[1]);
                     rec.setHoursWorked(AttendanceCalc.roundShiftHours(inShift));
                     String prefix = rec.getNote() != null ? rec.getNote() + " · " : "";
                     rec.setNote(prefix + "Tự động check-out lúc kết thúc ca (quên check-out)");
@@ -648,10 +660,10 @@ public class ShiftServiceImpl implements ShiftService {
                 continue;
             }
             int delta = deltas.getOrDefault(r.getId(), 0);
+            LocalDateTime[] w = effectiveWindow(s.getId(), r.getUserId(), s);
             long inShift =
                     AttendanceCalc.workedMinutesInShift(
-                            r.getCheckInTime(), r.getCheckOutTime(),
-                            s.getStartTime(), s.getEndTime());
+                            r.getCheckInTime(), r.getCheckOutTime(), w[0], w[1]);
             long total = Math.max(0, inShift + delta);
             BigDecimal newHours = AttendanceCalc.roundShiftHours(total);
             if (r.getRedistributedMinutes() == null
