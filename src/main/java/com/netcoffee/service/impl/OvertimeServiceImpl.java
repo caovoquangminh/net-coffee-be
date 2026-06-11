@@ -47,6 +47,12 @@ public class OvertimeServiceImpl implements OvertimeService {
         TWorkShiftEntity shift = findShiftOrThrow(shiftId);
         TUserEntity requester = findUserOrThrow(requesterId);
 
+        if (shift.getEndTime()
+                .isBefore(
+                        java.time.LocalDateTime.now(com.netcoffee.constant.AppConstant.VN_ZONE))) {
+            throw new IllegalArgumentException("Không thể tạo OT cho ca đã kết thúc.");
+        }
+
         boolean alreadyExists =
                 overtimeRequestRepository.findByRequesterIdAndShiftId(requesterId, shiftId).stream()
                         .anyMatch(
