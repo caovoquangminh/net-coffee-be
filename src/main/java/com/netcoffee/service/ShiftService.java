@@ -54,4 +54,12 @@ public interface ShiftService {
      * @return số bản ghi đã xử lý
      */
     int reconcileEndedShifts();
+
+    /**
+     * Dọn các ca cũ hơn {@code retentionDays} ngày (giữ lại N ngày gần nhất). Dữ liệu phụ thuộc tự
+     * xóa theo CASCADE.
+     *
+     * @return số ca đã xóa
+     */
+    int purgeOldShifts(int retentionDays);
 }

@@ -35,9 +35,20 @@ public class ShiftTransferController {
     public ResponseEntity<ApiResponse<ShiftTransferResponse>> create(
             @RequestBody Map<String, Object> body,
             @AuthenticationPrincipal UserDetails userDetails) {
-        Long originalUserId = Long.parseLong(userDetails.getUsername());
+        Long currentUser = Long.parseLong(userDetails.getUsername());
+        // 2 dạng:
+        //  - "Nhờ người làm thay": originalUserId = mình (mặc định), replacementUserId = đồng
+        // nghiệp.
+        //  - "Làm thay ai đó": originalUserId = chủ ca, replacementUserId = mình.
+        Long originalUserId =
+                body.get("originalUserId") != null
+                        ? Long.valueOf(body.get("originalUserId").toString())
+                        : currentUser;
         Long shiftId = Long.valueOf(body.get("shiftId").toString());
         Long replacementUserId = Long.valueOf(body.get("replacementUserId").toString());
+        if (!currentUser.equals(originalUserId) && !currentUser.equals(replacementUserId)) {
+            throw new IllegalArgumentException("Bạn phải là một bên trong yêu cầu làm thay.");
+        }
         LocalDateTime start = LocalDateTime.parse(body.get("startTime").toString());
         LocalDateTime end = LocalDateTime.parse(body.get("endTime").toString());
         String reason = body.get("reason") != null ? body.get("reason").toString() : null;

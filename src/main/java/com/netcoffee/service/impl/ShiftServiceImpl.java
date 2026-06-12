@@ -630,6 +630,21 @@ public class ShiftServiceImpl implements ShiftService {
         return processed;
     }
 
+    @Override
+    @Transactional
+    public int purgeOldShifts(int retentionDays) {
+        LocalDate cutoff = LocalDate.now(AppConstant.VN_ZONE).minusDays(retentionDays);
+        int deleted = workShiftRepository.deleteByShiftDateBefore(cutoff);
+        if (deleted > 0) {
+            log.info(
+                    "Dọn ca cũ: xóa {} ca trước ngày {} (giữ {} ngày gần nhất)",
+                    deleted,
+                    cutoff,
+                    retentionDays);
+        }
+        return deleted;
+    }
+
     /** Bù handover giữa ca cho 1 ngày (chỉ khi ngày đã kết thúc hẳn). Idempotent. */
     private void recomputeRedistributionForDate(LocalDate date, LocalDateTime now) {
         List<TWorkShiftEntity> dayShifts = workShiftRepository.findByShiftDate(date);
