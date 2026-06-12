@@ -96,11 +96,11 @@ public class OvertimeServiceImpl implements OvertimeService {
                 "Ca "
                         + shift.getShiftNumber()
                         + " ngày "
-                        + shift.getShiftDate()
+                        + com.netcoffee.utils.DateFmt.date(shift.getShiftDate())
                         + " ("
-                        + shift.getStartTime()
+                        + com.netcoffee.utils.DateFmt.time(shift.getStartTime())
                         + " - "
-                        + shift.getEndTime()
+                        + com.netcoffee.utils.DateFmt.time(shift.getEndTime())
                         + ")";
         try {
             String messageId =

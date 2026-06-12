@@ -89,7 +89,7 @@ public class LeaveServiceImpl implements LeaveService {
                                 + "Lý do: %s\n"
                                 + "ID: %d",
                         user.getFullName(),
-                        date,
+                        com.netcoffee.utils.DateFmt.date(date),
                         type != null ? type.name() : "N/A",
                         reason != null ? reason : "Không có",
                         req.getId());

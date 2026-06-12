@@ -103,9 +103,9 @@ public class ShiftTransferServiceImpl implements ShiftTransferService {
                         a.getFullName(),
                         b.getFullName(),
                         shift.getShiftNumber(),
-                        shift.getShiftDate(),
-                        startTime.toLocalTime(),
-                        endTime.toLocalTime(),
+                        com.netcoffee.utils.DateFmt.date(shift.getShiftDate()),
+                        com.netcoffee.utils.DateFmt.time(startTime),
+                        com.netcoffee.utils.DateFmt.time(endTime),
                         reason != null ? reason : "Không có",
                         req.getId());
         try {
