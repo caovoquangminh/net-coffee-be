@@ -4,5 +4,7 @@ public enum AttendanceStatusEnum {
     ON_TIME,
     LATE,
     EARLY_LEAVE,
-    ABSENT
+    ABSENT,
+    /** Hệ thống tự check-out vì NV quên check-out (chốt tại cuối ca). */
+    AUTO_CHECKOUT
 }

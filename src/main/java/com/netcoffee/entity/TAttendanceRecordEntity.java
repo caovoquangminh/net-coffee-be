@@ -44,6 +44,30 @@ public class TAttendanceRecordEntity {
     @Column(name = "hours_worked", precision = 5, scale = 2)
     private BigDecimal hoursWorked;
 
+    /** Giờ OT = làm thêm sau khi hết ca (đã làm tròn). Trả lương ×hệ số OT. */
+    @Column(name = "ot_hours", precision = 5, scale = 2, nullable = false)
+    @Builder.Default
+    private BigDecimal otHours = BigDecimal.ZERO;
+
+    /** Số phút đi trễ so với giờ bắt đầu ca (0 nếu đúng giờ/sớm). */
+    @Column(name = "late_minutes", nullable = false)
+    @Builder.Default
+    private Integer lateMinutes = 0;
+
+    /** Số phút về sớm so với giờ kết thúc ca (0 nếu đủ/quá giờ). */
+    @Column(name = "early_leave_minutes", nullable = false)
+    @Builder.Default
+    private Integer earlyLeaveMinutes = 0;
+
+    /** Phút được bù/bị trừ do handover giữa ca (dương=được cộng, âm=bị trừ). */
+    @Column(name = "redistributed_minutes", nullable = false)
+    @Builder.Default
+    private Integer redistributedMinutes = 0;
+
+    /** Lý do bắt buộc khi check-out sớm/trễ quá dung sai. */
+    @Column(name = "checkout_reason", length = 500)
+    private String checkoutReason;
+
     @Column(name = "is_overtime", nullable = false)
     @Builder.Default
     private Boolean isOvertime = false;

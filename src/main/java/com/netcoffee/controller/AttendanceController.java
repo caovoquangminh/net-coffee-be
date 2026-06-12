@@ -66,11 +66,19 @@ public class AttendanceController {
         return ResponseEntity.ok(ApiResponse.ok("Hủy đăng ký ca thành công", null));
     }
 
-    @PatchMapping("/shifts/registrations/{id}/approve")
+    @GetMapping("/registration-window")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ResponseEntity<ApiResponse<Boolean>> registrationWindow() {
+        return ResponseEntity.ok(ApiResponse.ok(shiftService.isRegistrationWindowOpen()));
+    }
+
+    @PostMapping("/shifts/{id}/assign")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ShiftResponse>> approveRegistration(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<ShiftResponse>> assignShift(
+            @PathVariable Long id, @RequestBody Map<String, Long> body) {
+        Long userId = body.get("userId");
         return ResponseEntity.ok(
-                ApiResponse.ok("Phê duyệt ca thành công", shiftService.approveRegistration(id)));
+                ApiResponse.ok("Đã sắp ca cho nhân viên", shiftService.assignShift(id, userId)));
     }
 
     @PostMapping("/checkin")
@@ -86,11 +94,14 @@ public class AttendanceController {
     @PostMapping("/checkout")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ResponseEntity<ApiResponse<AttendanceRecordResponse>> checkOut(
-            @RequestBody Map<String, Long> body, @AuthenticationPrincipal UserDetails userDetails) {
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        Long shiftId = body.get("shiftId");
+        Long shiftId = Long.valueOf(body.get("shiftId").toString());
+        String reason = body.get("reason") != null ? body.get("reason").toString() : null;
         return ResponseEntity.ok(
-                ApiResponse.ok("Check-out thành công", shiftService.checkOut(userId, shiftId)));
+                ApiResponse.ok(
+                        "Check-out thành công", shiftService.checkOut(userId, shiftId, reason)));
     }
 
     @GetMapping("/history")
@@ -115,6 +126,20 @@ public class AttendanceController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<AttendanceRecordResponse>>> getCurrentOnShift() {
         return ResponseEntity.ok(ApiResponse.ok(shiftService.getCurrentOnShift()));
+    }
+
+    @GetMapping("/dashboard")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<com.netcoffee.dto.response.AttendanceDashboardResponse>>
+            getDashboard() {
+        return ResponseEntity.ok(ApiResponse.ok(shiftService.getDashboardSummary()));
+    }
+
+    @GetMapping("/colleagues")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ResponseEntity<ApiResponse<List<com.netcoffee.dto.response.StaffOptionResponse>>>
+            getColleagues() {
+        return ResponseEntity.ok(ApiResponse.ok(shiftService.getColleagues()));
     }
 
     @GetMapping("/overtime")
@@ -142,11 +167,30 @@ public class AttendanceController {
                 body.get("coveringUserId") != null
                         ? Long.valueOf(body.get("coveringUserId").toString())
                         : null;
+        Long replacementUserId =
+                body.get("replacementUserId") != null
+                        ? Long.valueOf(body.get("replacementUserId").toString())
+                        : null;
+        java.time.LocalDateTime otStart =
+                body.get("otStartTime") != null
+                        ? java.time.LocalDateTime.parse(body.get("otStartTime").toString())
+                        : null;
+        java.time.LocalDateTime otEnd =
+                body.get("otEndTime") != null
+                        ? java.time.LocalDateTime.parse(body.get("otEndTime").toString())
+                        : null;
         return ResponseEntity.ok(
                 ApiResponse.ok(
                         "Tạo yêu cầu OT thành công",
                         overtimeService.createOvertimeRequest(
-                                userId, shiftId, reason, type, coveringUserId)));
+                                userId,
+                                shiftId,
+                                reason,
+                                type,
+                                coveringUserId,
+                                otStart,
+                                otEnd,
+                                replacementUserId)));
     }
 
     @PatchMapping("/overtime/{id}/approve")

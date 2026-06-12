@@ -38,6 +38,17 @@ public class TOvertimeRequestEntity {
     @Column(name = "covering_user_id")
     private Long coveringUserId;
 
+    /** Người được nhờ làm thay (nếu OT là làm thay cho ai đó). */
+    @Column(name = "replacement_user_id")
+    private Long replacementUserId;
+
+    /** Giờ OT cụ thể (bắt buộc với spec mới: ngày + giờ bắt đầu/kết thúc). */
+    @Column(name = "ot_start_time")
+    private LocalDateTime otStartTime;
+
+    @Column(name = "ot_end_time")
+    private LocalDateTime otEndTime;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default

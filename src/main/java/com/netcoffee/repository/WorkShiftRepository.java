@@ -21,4 +21,13 @@ public interface WorkShiftRepository extends JpaRepository<TWorkShiftEntity, Lon
 
     /** Các ca có endTime trong khoảng — dùng cho job đối soát ca đã kết thúc. */
     List<TWorkShiftEntity> findByEndTimeBetween(LocalDateTime from, LocalDateTime to);
+
+    /**
+     * Xóa các ca có ngày trước {@code cutoff}. Dữ liệu phụ thuộc (đăng ký, chấm công, OT, đổi
+     * ca/làm thay...) tự xóa theo ràng buộc ON DELETE CASCADE ở DB.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query(
+            "delete from TWorkShiftEntity w where w.shiftDate < :cutoff")
+    int deleteByShiftDateBefore(LocalDate cutoff);
 }

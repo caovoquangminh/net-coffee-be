@@ -2,17 +2,21 @@ package com.netcoffee.service;
 
 import com.netcoffee.dto.response.OvertimeRequestResponse;
 import com.netcoffee.enumtype.OvertimeTypeEnum;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface OvertimeService {
 
-    /** Tạo yêu cầu OT, gửi Telegram cho admin. */
+    /** Tạo yêu cầu OT (kèm giờ OT cụ thể + người thay), gửi Telegram cho admin. */
     OvertimeRequestResponse createOvertimeRequest(
             Long requesterId,
             Long shiftId,
             String reason,
             OvertimeTypeEnum type,
-            Long coveringUserId);
+            Long coveringUserId,
+            LocalDateTime otStart,
+            LocalDateTime otEnd,
+            Long replacementUserId);
 
     /** Admin phê duyệt OT, tạo attendance record cho OT. */
     OvertimeRequestResponse approveOvertime(Long requestId, Long approvedBy);

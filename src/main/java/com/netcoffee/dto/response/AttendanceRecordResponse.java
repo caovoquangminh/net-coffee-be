@@ -20,6 +20,10 @@ public class AttendanceRecordResponse {
     private LocalDateTime checkOutTime;
     private AttendanceStatusEnum attendStatus;
     private BigDecimal hoursWorked;
+    private Integer lateMinutes;
+    private Integer earlyLeaveMinutes;
+    private Integer redistributedMinutes;
+    private String checkoutReason;
     private Boolean isOvertime;
     private String note;
     private LocalDateTime createdAt;

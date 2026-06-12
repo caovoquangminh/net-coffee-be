@@ -39,10 +39,33 @@ public class OvertimeServiceImpl implements OvertimeService {
             Long shiftId,
             String reason,
             OvertimeTypeEnum type,
-            Long coveringUserId) {
+            Long coveringUserId,
+            java.time.LocalDateTime otStart,
+            java.time.LocalDateTime otEnd,
+            Long replacementUserId) {
 
         TWorkShiftEntity shift = findShiftOrThrow(shiftId);
         TUserEntity requester = findUserOrThrow(requesterId);
+
+        if (shift.getEndTime()
+                .isBefore(
+                        java.time.LocalDateTime.now(com.netcoffee.constant.AppConstant.VN_ZONE))) {
+            throw new IllegalArgumentException("Không thể tạo OT cho ca đã kết thúc.");
+        }
+        if ((coveringUserId != null && coveringUserId.equals(requesterId))
+                || (replacementUserId != null && replacementUserId.equals(requesterId))) {
+            throw new IllegalArgumentException("Không thể chọn chính mình để làm thay.");
+        }
+        // OT = phần làm THÊM sau khi hết ca → giờ bắt đầu OT không được trước giờ kết thúc ca.
+        if (otStart != null && otStart.isBefore(shift.getEndTime())) {
+            throw new IllegalArgumentException(
+                    "OT là phần làm thêm SAU khi hết ca (bắt đầu từ "
+                            + shift.getEndTime().toLocalTime()
+                            + " trở đi).");
+        }
+        if (otStart != null && otEnd != null && !otEnd.isAfter(otStart)) {
+            throw new IllegalArgumentException("Giờ kết thúc OT phải sau giờ bắt đầu.");
+        }
 
         boolean alreadyExists =
                 overtimeRequestRepository.findByRequesterIdAndShiftId(requesterId, shiftId).stream()
@@ -62,6 +85,9 @@ public class OvertimeServiceImpl implements OvertimeService {
                         .reason(reason)
                         .otType(type)
                         .coveringUserId(coveringUserId)
+                        .replacementUserId(replacementUserId)
+                        .otStartTime(otStart)
+                        .otEndTime(otEnd)
                         .status(OvertimeStatusEnum.PENDING)
                         .build();
         TOvertimeRequestEntity saved = overtimeRequestRepository.save(request);
@@ -185,6 +211,8 @@ public class OvertimeServiceImpl implements OvertimeService {
                 .reason(r.getReason())
                 .otType(r.getOtType())
                 .coveringUserId(r.getCoveringUserId())
+                .otStartTime(r.getOtStartTime())
+                .otEndTime(r.getOtEndTime())
                 .status(r.getStatus())
                 .createdAt(r.getCreatedAt())
                 .updatedAt(r.getUpdatedAt())
@@ -210,6 +238,8 @@ public class OvertimeServiceImpl implements OvertimeService {
                 .otType(r.getOtType())
                 .coveringUserId(r.getCoveringUserId())
                 .coveringUserName(covering != null ? covering.getFullName() : null)
+                .otStartTime(r.getOtStartTime())
+                .otEndTime(r.getOtEndTime())
                 .status(r.getStatus())
                 .createdAt(r.getCreatedAt())
                 .updatedAt(r.getUpdatedAt())
