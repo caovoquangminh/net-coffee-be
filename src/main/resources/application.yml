@@ -57,3 +57,6 @@ app:
     bot-token: ${TELEGRAM_BOT_TOKEN:}
     admin-chat-id: ${TELEGRAM_ADMIN_CHAT_ID:}
     webhook-secret: ${TELEGRAM_WEBHOOK_SECRET:changeme}
+    # Long-polling (getUpdates) để nhận nút Duyệt/Từ chối khi chạy local không có webhook public.
+    # Đặt false nếu deploy có URL công khai và dùng webhook thay thế.
+    polling-enabled: ${TELEGRAM_POLLING_ENABLED:true}

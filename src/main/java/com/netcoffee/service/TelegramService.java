@@ -26,4 +26,19 @@ public interface TelegramService {
 
     /** Phản hồi nút bấm (tắt vòng loading trên Telegram). Best-effort. */
     void answerCallback(String callbackQueryId, String text);
+
+    /** Bot đã cấu hình token + chat id chưa. */
+    boolean isConfigured();
+
+    /** Xóa webhook (để dùng long-polling getUpdates không bị xung đột). Best-effort. */
+    void deleteWebhook();
+
+    /**
+     * Long-poll getUpdates. Trả danh sách update (mỗi update là 1 map). Rỗng nếu chưa cấu hình hoặc
+     * lỗi.
+     */
+    java.util.List<java.util.Map<String, Object>> getUpdates(long offset, int timeoutSeconds);
+
+    /** Sửa nội dung message + gỡ bỏ inline keyboard (sau khi đã duyệt/từ chối). Best-effort. */
+    void editMessageText(String chatId, Long messageId, String text);
 }

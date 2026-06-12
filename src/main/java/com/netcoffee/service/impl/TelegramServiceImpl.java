@@ -41,7 +41,8 @@ public class TelegramServiceImpl implements TelegramService {
         return appSettingService.get(AppSettingService.TELEGRAM_CHAT_ID, adminChatIdYml);
     }
 
-    private boolean isConfigured() {
+    @Override
+    public boolean isConfigured() {
         String t = token();
         String c = chatId();
         return t != null && !t.isBlank() && c != null && !c.isBlank();
@@ -132,6 +133,69 @@ public class TelegramServiceImpl implements TelegramService {
             restTemplate.postForObject(url, new HttpEntity<>(body, headers), Map.class);
         } catch (Exception e) {
             log.warn("answerCallbackQuery thất bại: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void deleteWebhook() {
+        String t = token();
+        if (t == null || t.isBlank()) {
+            return;
+        }
+        try {
+            restTemplate.getForObject(TELEGRAM_API + t + "/deleteWebhook", Map.class);
+        } catch (Exception e) {
+            log.warn("deleteWebhook thất bại: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getUpdates(long offset, int timeoutSeconds) {
+        String t = token();
+        if (t == null || t.isBlank()) {
+            return List.of();
+        }
+        try {
+            String url =
+                    TELEGRAM_API
+                            + t
+                            + "/getUpdates?offset="
+                            + offset
+                            + "&timeout="
+                            + timeoutSeconds;
+            Map<String, Object> response = restTemplate.getForObject(url, Map.class);
+            if (response != null && Boolean.TRUE.equals(response.get("ok"))) {
+                Object result = response.get("result");
+                if (result instanceof List<?> list) {
+                    return (List<Map<String, Object>>) list;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("getUpdates thất bại: {}", e.getMessage());
+        }
+        return List.of();
+    }
+
+    @Override
+    public void editMessageText(String chatId, Long messageId, String text) {
+        if (!isConfigured() || messageId == null) {
+            return;
+        }
+        try {
+            String url = TELEGRAM_API + token() + "/editMessageText";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            String body =
+                    objectMapper.writeValueAsString(
+                            Map.of(
+                                    "chat_id", chatId,
+                                    "message_id", messageId,
+                                    "text", text,
+                                    "reply_markup", Map.of("inline_keyboard", List.of())));
+            restTemplate.postForObject(url, new HttpEntity<>(body, headers), Map.class);
+        } catch (Exception e) {
+            log.warn("editMessageText thất bại: {}", e.getMessage());
         }
     }
 
