@@ -72,9 +72,9 @@ public class ShiftSwapServiceImpl implements ShiftSwapService {
                         fromUser.getFullName(),
                         toUser.getFullName(),
                         shift.getShiftNumber(),
-                        shift.getShiftDate(),
-                        shift.getStartTime().toLocalTime(),
-                        shift.getEndTime().toLocalTime(),
+                        com.netcoffee.utils.DateFmt.date(shift.getShiftDate()),
+                        com.netcoffee.utils.DateFmt.time(shift.getStartTime()),
+                        com.netcoffee.utils.DateFmt.time(shift.getEndTime()),
                         reason != null ? reason : "Không có",
                         req.getId());
         try {
